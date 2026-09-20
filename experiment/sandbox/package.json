@@ -1,0 +1,17 @@
+{
+  "name": "notely",
+  "version": "1.0.0",
+  "private": true,
+  "description": "a small notes app with user settings",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.0"
+  }
+}
