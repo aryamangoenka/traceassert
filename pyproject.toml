@@ -1,0 +1,19 @@
+# one runtime dep: typesafe's official sdk, the judge talks through it
+[project]
+name = "traceassert"
+version = "0.0.1"
+description = "semantic assertions over coding-agent traces. tests what your agent actually did."
+requires-python = ">=3.10"
+dependencies = [
+    "typesafe-sdk>=0.7.0",
+]
+
+[project.scripts]
+traceassert = "traceassert.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
