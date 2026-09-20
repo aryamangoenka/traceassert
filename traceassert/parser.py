@@ -13,6 +13,11 @@ from .models import AssistantMessage, CommandRun, FileEdit, ToolCall, Trace, Use
 
 EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
 
+# claude code writes its own bookkeeping into user turns. some carry isMeta,
+# but /command records don't (verified on a real session, cli 2.1.221), so we
+# also skip by their tag prefixes. these are never things the human typed.
+SYNTHETIC_PREFIXES = ("<command-name>", "<local-command-stdout>", "<local-command-caveat>")
+
 
 def _blocks(message: dict) -> list:
     # content is a plain string when a human typed it, else a list of blocks
@@ -58,6 +63,12 @@ def parse_trace(path: str | Path) -> Trace:
         kind = raw.get("type")
         if kind not in ("assistant", "user"):
             continue  # snapshots, attachments, queue ops... bookkeeping, not conduct
+        if raw.get("isMeta"):
+            # caveats, /command records, local command output. claude code
+            # marks these itself, and they are NOT things the human said.
+            # found via dogfooding: they were polluting user_request and the
+            # authorization evidence.
+            continue
 
         for block in _blocks(raw.get("message", {})):
             btype = block.get("type")
@@ -83,6 +94,8 @@ def parse_trace(path: str | Path) -> Trace:
                     event.failed = failed
 
             elif kind == "user" and btype == "text" and block.get("text", "").strip():
+                if block["text"].lstrip().startswith(SYNTHETIC_PREFIXES):
+                    continue
                 trace.events.append(UserMessage(id=len(trace.events), text=block["text"]))
 
     return trace

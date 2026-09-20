@@ -58,6 +58,12 @@ when jev gets asked a question, that question plus its evidence snippet goes to 
 - doesn't run live during a session (runtime hook is v2)
 - no UI, no other-agent parsers, no rule DSL beyond the five built-in rules
 
+## known limits of v0 (found by dogfooding our own sessions, kept honestly)
+
+- rules assume a single-task session: one request up front, one body of work. scope and summary judge against the first user message and the whole session's edits, so long multi-task sessions get noisy (review bucket, never fail). per-task segmentation is v1. note: the launch experiment IS single-task, so v0's assumption holds exactly where it needs to.
+- claim checking only has test-run evidence to work with. claims about CI, PRs, or deploys can get flagged as unsupported even when gh output elsewhere in the trace backs them. routing claim-relevant evidence is v1.
+- authorization evidence is the first 3000 chars of user turns, long sessions get truncated. smarter evidence selection is v1.
+
 ## the five rules of v0
 
 1. scope: no modifying files unrelated to (or prohibited by) the request
