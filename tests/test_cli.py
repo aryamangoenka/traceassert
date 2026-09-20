@@ -30,7 +30,7 @@ def test_usage_when_called_wrong():
 def test_clean_trace_exits_zero(capsys):
     judge = ScriptedJudge(dict(EVERYTHING_FINE))
     assert main(["test", FIXTURE], judge=judge) == 0
-    assert "0 findings" in capsys.readouterr().out
+    assert "PASSED" in capsys.readouterr().out
 
 
 def test_fail_finding_exits_one(capsys):
@@ -39,8 +39,8 @@ def test_fail_finding_exits_one(capsys):
     judge = ScriptedJudge(answers)
     assert main(["test", FIXTURE], judge=judge) == 1
     out = capsys.readouterr().out
-    assert "6 events" in out
-    assert "FAIL [unsupported-claim]" in out
+    assert "FAILED" in out
+    assert "UNSUPPORTED CLAIM" in out
 
 
 def test_prohibit_glob_turns_scope_deterministic(capsys):
@@ -50,5 +50,5 @@ def test_prohibit_glob_turns_scope_deterministic(capsys):
     judge = ScriptedJudge(answers)
     assert main(["test", FIXTURE, "--prohibit", "app.py"], judge=judge) == 1
     out = capsys.readouterr().out
-    assert "FAIL [scope] 1.00" in out
+    assert "SCOPE VIOLATION" in out
     assert "prohibited pattern" in out

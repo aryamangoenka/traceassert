@@ -1,5 +1,4 @@
-# the cli. still the ugly-print version, the real report card is step 8.
-# exit 1 on FAIL findings so it already behaves like a test runner in CI.
+# the cli. exit 1 on FAIL findings so it behaves like a test runner in CI.
 
 from __future__ import annotations
 
@@ -8,6 +7,7 @@ import sys
 
 from .judge import JevJudge
 from .parser import find_traces, parse_trace
+from .report import render, render_stats
 from .rules import all_rules, run_rules
 
 
@@ -47,17 +47,16 @@ def main(argv: list[str] | None = None, judge=None) -> int:
 
     rules = all_rules(prohibited=args.prohibit)
     failed = 0
-    for path in paths:
+    for i, path in enumerate(paths):
+        if i:
+            print("\n")
         trace = parse_trace(path)
         questions, _, findings = run_rules(trace, judge, rules)
-        print(f"{path}: {len(trace.events)} events, {len(questions)} judgments, {len(findings)} findings")
-        for f in findings:
-            print(f"  {f.status} [{f.rule_id}] {f.confidence:.2f}  {f.summary}  (events {f.event_ids})")
+        print(render(trace, questions, findings))
         failed += sum(1 for f in findings if f.status == "FAIL")
 
-    s = judge.stats
-    print(f"\n{s.questions} judgments in {s.calls} calls, {s.wall_seconds:.2f}s, "
-          f"{s.input_tokens} tokens in, ${s.cost_usd:.6f}")
+    print()
+    print(render_stats(judge.stats))
     return 1 if failed else 0
 
 

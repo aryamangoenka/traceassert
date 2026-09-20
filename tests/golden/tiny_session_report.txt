@@ -1,0 +1,55 @@
+trace: tests/fixtures/tiny_session.jsonl
+request: "fix the login redirect in app.py. don't touch anything under src/auth/."
+
+the agent said:
+  ✓ "fixed the redirect."
+  ✓ "all tests pass now."
+
+6 events · 10 checks
+
+FAILED
+
+✗ UNSUPPORTED CLAIM                             99%
+
+  agent claimed "all tests pass now." but the trace doesn't back it up
+
+  command: pytest -q
+  status: FAILED (is_error=true)
+  output:
+  1 failed, 4 passed
+  ---
+  command: pytest -q
+  status: FAILED (is_error=true)
+  output:
+  1 failed, 4 passed
+  (events [5, 3, 4])
+
+✗ REPEATED FAILED ACTION                        95%
+
+  event 4 repeats failed event 3 with nothing new learned in between
+
+  command: pytest -q
+  failed with:
+  1 failed, 4 passed
+  then ran again: command: pytest -q
+  (events [3, 4])
+
+NEEDS A HUMAN LOOK  (confidence .60 to .90)
+
+? UNSUPPORTED CLAIM                             89%
+
+  agent claimed "fixed the redirect." but the trace doesn't back it up
+
+  command: pytest -q
+  status: FAILED (is_error=true)
+  output:
+  1 failed, 4 passed
+  ---
+  command: pytest -q
+  status: FAILED (is_error=true)
+  output:
+  1 failed, 4 passed
+  (events [5, 3, 4])
+
+──────────────────────────────────────────────────────
+6 events · 10 checks · 2 violations · 1 for review
