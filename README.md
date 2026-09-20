@@ -1,8 +1,10 @@
 # traceassert
 
-**Semantic assertions for coding agents.** Write rules in plain English; traceassert checks every step your agent actually took against them — thousands of judgments, seconds, pennies — powered by [Jev](https://typesafe.ai).
+you already test your code. this tests what your agent actually did.
 
-> Scenario tests check what your agent *would* do. traceassert checks what it *did*.
+write rules in plain english, and traceassert replays every step of your agent's session against them. thousands of checks, a couple seconds, basically free (powered by [Jev](https://typesafe.ai)).
+
+> scenario tests check what your agent *would* do. traceassert checks what it *did*.
 
 ```yaml
 rules:
@@ -15,6 +17,6 @@ rules:
 $ traceassert test ./traces
 ```
 
-Status: building in public. First demo: this weekend.
+status: building right now. first demo soon.
 
-Every verdict ships with a published calibration curve — when traceassert says 95%, you'll know exactly how often that's right. Claims you can verify.
+one thing we're serious about here: every verdict ships with a published calibration curve. when traceassert says 95, you'll know how often that's actually right. claims you can verify.

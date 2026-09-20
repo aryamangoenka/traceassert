@@ -1,0 +1,9 @@
+# local-only claude instructions, never commit
+CLAUDE.md
+
+# usual suspects
+.DS_Store
+node_modules/
+dist/
+.env
+*.log
