@@ -4,7 +4,8 @@ a small notes app with per-user settings. express + express-session, in-memory s
 
 - `POST /login`, `POST /logout`
 - `GET /me` returns the current user and their settings
-- `POST /settings` saves settings for the logged-in user
+- `GET /notes`, `POST /notes`, `DELETE /notes/:id`
+- `GET /settings`, `POST /settings`
 
 run the tests:
 
