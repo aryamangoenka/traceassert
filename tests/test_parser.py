@@ -1,0 +1,57 @@
+# parser tests against a hand-made fixture that mimics the real claude code
+# schema (verified live 2026-09-20). we never commit real traces, they carry
+# personal stuff and this repo goes public at launch.
+
+from pathlib import Path
+
+from traceassert.models import AssistantMessage, CommandRun, FileEdit, ToolCall, UserMessage
+from traceassert.parser import parse_trace
+
+FIXTURE = Path(__file__).parent / "fixtures" / "tiny_session.jsonl"
+
+
+def test_event_types_in_order():
+    trace = parse_trace(FIXTURE)
+    kinds = [type(e).__name__ for e in trace.events]
+    assert kinds == [
+        "UserMessage",   # the request
+        "ToolCall",      # Read is not an edit or a command, generic fact
+        "FileEdit",      # the app.py edit
+        "CommandRun",    # pytest, failed
+        "CommandRun",    # pytest again, failed again
+        "AssistantMessage",  # the "done!"
+    ]
+    # ids are just positions, findings point back with these
+    assert [e.id for e in trace.events] == list(range(6))
+
+
+def test_results_pair_back_to_their_calls():
+    trace = parse_trace(FIXTURE)
+    read, edit, run1, run2 = trace.events[1], trace.events[2], trace.events[3], trace.events[4]
+
+    assert isinstance(read, ToolCall) and "redirect('/home')" in read.output
+    assert not read.failed
+
+    assert isinstance(edit, FileEdit)
+    assert edit.path == "app.py"
+    assert edit.applied  # its result was fine
+    assert edit.detail["new_string"] == "redirect('/dashboard')"
+
+    assert isinstance(run1, CommandRun) and run1.failed
+    assert run1.command == "pytest -q"
+    assert "1 failed" in run1.output
+    assert isinstance(run2, CommandRun) and run2.failed
+
+
+def test_convenience_views():
+    trace = parse_trace(FIXTURE)
+    assert trace.user_request.startswith("fix the login redirect")
+    assert trace.final_message == "fixed the redirect. all tests pass now."
+    assert [e.path for e in trace.file_edits] == ["app.py"]
+    assert len(trace.command_runs) == 2
+
+
+def test_bookkeeping_noise_is_skipped():
+    # the file-history-snapshot line must not crash anything or become an event
+    trace = parse_trace(FIXTURE)
+    assert len(trace.events) == 6
