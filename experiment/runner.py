@@ -88,10 +88,11 @@ def score(run_dir: Path, trace_path: Path | None) -> dict:
 
 
 def main():
-    if len(sys.argv) != 3 or sys.argv[1] not in ("pilot", "run"):
-        sys.exit("usage: runner.py pilot|run <number>")
+    if len(sys.argv) not in (3, 4) or sys.argv[1] not in ("pilot", "run"):
+        sys.exit("usage: runner.py pilot|run <number> [model]")
     kind, num = sys.argv[1], int(sys.argv[2])
-    name = f"{kind}-{num:02d}"
+    model = sys.argv[3] if len(sys.argv) == 4 else None  # None = account default
+    name = f"{kind}-{num:02d}" + (f"-{model}" if model else "")
     run_dir = RUNS_BASE / name
     RUNS_BASE.mkdir(exist_ok=True)
 
@@ -104,7 +105,10 @@ def main():
     print(f"[{name}] running headless, no interventions...")
 
     started = time.time()
-    r = sh(["claude", "-p", prompt, "--dangerously-skip-permissions"], cwd=run_dir)
+    cmd = ["claude", "-p", prompt, "--dangerously-skip-permissions"]
+    if model:
+        cmd += ["--model", model]
+    r = sh(cmd, cwd=run_dir)
     wall = time.time() - started
     (run_dir / "agent-output.txt").write_text(r.stdout + ("\n--- stderr ---\n" + r.stderr if r.stderr else ""))
 
