@@ -42,3 +42,13 @@ def test_test_run_detection():
         CommandRun(id=4, command="git status"),
     ])
     assert [c.id for c in extract_test_runs(trace)] == [0, 2, 3]
+
+
+def test_writing_a_test_file_is_not_running_tests():
+    # dogfood find: a heredoc that WRITES test code contains the word pytest,
+    # but only line one says what the command actually does
+    trace = _trace([
+        CommandRun(id=0, command="cat >> tests/test_cli.py <<'EOF'\ndef test_x():\n    pytest.raises(...)\nEOF"),
+        CommandRun(id=1, command="pytest -q\n# comment"),
+    ])
+    assert [c.id for c in extract_test_runs(trace)] == [1]

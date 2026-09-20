@@ -57,4 +57,7 @@ TESTY = re.compile(
 
 
 def extract_test_runs(trace: Trace) -> list[CommandRun]:
-    return [c for c in trace.command_runs if TESTY.search(c.command)]
+    # match on the first line only. dogfooding found a `cat >> test_x.py <<EOF`
+    # whose heredoc BODY contained "pytest", which made writing a test file
+    # count as running the tests. the command itself lives on line one.
+    return [c for c in trace.command_runs if TESTY.search(c.command.split("\n", 1)[0])]
