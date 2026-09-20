@@ -1,26 +1,41 @@
-# the cli. this is still the vertical-slice version: findings come out as
-# ugly prints, the real report card is step 8. exit 1 on FAIL findings so it
-# already behaves like a test runner in CI.
+# the cli. still the ugly-print version, the real report card is step 8.
+# exit 1 on FAIL findings so it already behaves like a test runner in CI.
 
 from __future__ import annotations
 
+import argparse
 import sys
 
 from .judge import JevJudge
 from .parser import find_traces, parse_trace
-from .rules import run_rules
+from .rules import all_rules, run_rules
 
 
 def main(argv: list[str] | None = None, judge=None) -> int:
     # judge is injectable so tests never touch the network, real runs use jev
-    argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 2 or argv[0] != "test":
-        print("usage: traceassert test <trace.jsonl | folder of traces>")
+    parser = argparse.ArgumentParser(
+        prog="traceassert",
+        description="tests what your agent actually did",
+    )
+    sub = parser.add_subparsers(dest="cmd")
+    test = sub.add_parser("test", help="run the rules against traces")
+    test.add_argument("path", help="a .jsonl trace or a folder of them")
+    test.add_argument(
+        "--prohibit", action="append", default=[], metavar="GLOB",
+        help="path pattern the agent was told not to touch (repeatable), e.g. 'src/auth/*'",
+    )
+
+    try:
+        args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    except SystemExit as e:  # argparse exits on bad args, we return instead
+        return int(e.code or 2)
+    if args.cmd != "test":
+        parser.print_help()
         return 2
 
-    paths = find_traces(argv[1])
+    paths = find_traces(args.path)
     if not paths:
-        print(f"no .jsonl traces found at {argv[1]}")
+        print(f"no .jsonl traces found at {args.path}")
         return 2
 
     if judge is None:
@@ -30,10 +45,11 @@ def main(argv: list[str] | None = None, judge=None) -> int:
             print(e)
             return 2
 
+    rules = all_rules(prohibited=args.prohibit)
     failed = 0
     for path in paths:
         trace = parse_trace(path)
-        questions, _, findings = run_rules(trace, judge)
+        questions, _, findings = run_rules(trace, judge, rules)
         print(f"{path}: {len(trace.events)} events, {len(questions)} judgments, {len(findings)} findings")
         for f in findings:
             print(f"  {f.status} [{f.rule_id}] {f.confidence:.2f}  {f.summary}  (events {f.event_ids})")
