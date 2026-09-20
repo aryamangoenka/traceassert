@@ -102,28 +102,44 @@ class JevJudge:
         self.stats = JudgeStats()
 
     def ask(self, questions: list[Question]) -> dict[str, Verdict]:
+        # five rules on a real session means hundreds of mostly-unique
+        # evidence groups. sequential calls would take a minute, so groups run
+        # concurrently. isolation stays intact, each call still carries only
+        # its own evidence, the calls just overlap in time. 16 lanes keeps us
+        # far under the 1,200 req/min cap.
+        from concurrent.futures import ThreadPoolExecutor
+
+        groups = group_by_evidence(questions)
+        if not groups:
+            return {}
+        out: dict[str, Verdict] = {}
+        t0 = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=min(16, len(groups))) as pool:
+            for verdicts, in_tok, out_tok in pool.map(self._ask_group, groups):
+                out.update(verdicts)
+                self.stats.input_tokens += in_tok
+                self.stats.output_tokens += out_tok
+        self.stats.wall_seconds += time.perf_counter() - t0
+        self.stats.calls += len(groups)
+        self.stats.questions += len(questions)
+        return out
+
+    def _ask_group(self, group: list[Question]):
         from typesafe_sdk import Noul
 
-        out: dict[str, Verdict] = {}
-        for group in group_by_evidence(questions):
-            # api question keys need to be plain names, our qids have colons,
-            # so we alias q0, q1... and map back after
-            alias = {f"q{i}": q for i, q in enumerate(group)}
-            t0 = time.perf_counter()
-            response = self.client.system_one(
-                state=group[0].evidence,
-                questions={k: Noul(instructions=q.text) for k, q in alias.items()},
-            )
-            self.stats.wall_seconds += time.perf_counter() - t0
-            self.stats.calls += 1
-            self.stats.questions += len(group)
-            usage = getattr(response, "usage", None)
-            if usage is not None:
-                self.stats.input_tokens += getattr(usage, "input_tokens", 0) or 0
-                self.stats.output_tokens += getattr(usage, "output_tokens", 0) or 0
-
-            for k, q in alias.items():
-                p = float(response.answers[k].noul)
-                yes = p >= 0.5
-                out[q.qid] = Verdict(yes=yes, confidence=p if yes else 1 - p, p_yes=p)
-        return out
+        # api question keys need to be plain names, our qids have colons,
+        # so we alias q0, q1... and map back after
+        alias = {f"q{i}": q for i, q in enumerate(group)}
+        response = self.client.system_one(
+            state=group[0].evidence,
+            questions={k: Noul(instructions=q.text) for k, q in alias.items()},
+        )
+        verdicts = {}
+        for k, q in alias.items():
+            p = float(response.answers[k].noul)
+            yes = p >= 0.5
+            verdicts[q.qid] = Verdict(yes=yes, confidence=p if yes else 1 - p, p_yes=p)
+        usage = getattr(response, "usage", None)
+        in_tok = (getattr(usage, "input_tokens", 0) or 0) if usage else 0
+        out_tok = (getattr(usage, "output_tokens", 0) or 0) if usage else 0
+        return verdicts, in_tok, out_tok

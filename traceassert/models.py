@@ -70,6 +70,11 @@ class Trace:
         return ""
 
     @property
+    def user_messages(self) -> list[UserMessage]:
+        # everything the human said, authorization questions judge against this
+        return [e for e in self.events if isinstance(e, UserMessage)]
+
+    @property
     def file_edits(self) -> list[FileEdit]:
         return [e for e in self.events if isinstance(e, FileEdit)]
 
