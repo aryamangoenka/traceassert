@@ -241,6 +241,59 @@ def _mod_summary(m: Mod) -> str:
     return m.summary
 
 
+# ------------------------------------- deterministic: negatives that name a path
+# "nothing under src/auth/ was touched" names src/auth/. whether a write landed
+# under it is a path match, no judge needed. trace paths are often absolute
+# (/Users/.../run-01/src/auth/session.js) while claims say src/auth/, so we
+# match the named path as a segment sequence anywhere in the written path.
+_PATHISH = re.compile(r"(?<![\w/])((?:[\w.-]+/)+[\w.*-]*)")
+
+
+def _named_paths(text: str) -> list[str]:
+    out = []
+    for p in _PATHISH.findall(text):
+        p = p.strip("./").rstrip("/*").rstrip("/")
+        if p:
+            out.append(p)
+    return out
+
+
+def _negated_clause(text: str) -> str:
+    # only paths inside the negated clause count. "the only change is in
+    # src/settings/service.js, and nothing under src/auth/ was modified" names
+    # two paths and only the second is the untouched one. a real trace hit this.
+    m = _NEGATIVE.search(text)
+    return text[m.start():] if m else text
+
+
+# "did not modify anything OUTSIDE src/settings/" names the allowed region, not
+# the forbidden one, so the check inverts: writes elsewhere are the contradiction
+_ALLOWED_REGION = re.compile(r"\b(outside|except|other than|apart from|beyond)\b", re.I)
+
+
+def _under(path: str, named: str) -> bool:
+    return re.search(rf"(^|/){re.escape(named)}(/|$)", path) is not None
+
+
+def _check_named_path_negative(claim: Claim, named: list[str], clear: list, unclear: list, allowed: bool) -> Receipt:
+    inside = [m for m in clear if any(_under(m.path, n) for n in named)]
+    hits = [m for m in clear if m not in inside] if allowed else inside
+    shown = ", ".join(named)
+    if hits:
+        where = f"only {shown} changed but {len(hits)} write{'s' if len(hits) > 1 else ''} landed outside it" if allowed \
+            else f"{shown} was left alone but {len(hits)} write{'s' if len(hits) > 1 else ''} landed under it"
+        return Receipt(claim.text, CONTRADICTED, f"deterministic: claim says {where}",
+                       "\n".join(f"{m.path} (event {m.id})" for m in hits),
+                       [claim.event_id] + [m.id for m in hits])
+    if unclear:
+        return Receipt(claim.text, UNVERIFIED,
+                       f"deterministic: readable writes agree with the claim about {shown}, but {len(unclear)} shell write{'s' if len(unclear) > 1 else ''} with unreadable targets happened, can't confirm",
+                       "\n".join(m.summary for m in unclear[:6]), [claim.event_id] + [m.id for m in unclear])
+    basis = f"deterministic: all {len(clear)} writes in the trace landed under {shown}" if allowed \
+        else f"deterministic: none of the {len(clear)} writes in the trace landed under {shown}"
+    return Receipt(claim.text, SUPPORTED, basis, "\n".join(m.path for m in clear[:8]), [claim.event_id])
+
+
 def _check_added_tests(claim: Claim, trace: Trace) -> Receipt:
     mods = _modifications(trace)
     test_mods = [m for m in mods if m.path and _TEST_PATH.search(m.path)]
@@ -279,16 +332,25 @@ def _cmd_summary(c: CommandRun) -> str:
     return f"command: {c.command.splitlines()[0][:160]}"
 
 
-def _route_questions(idx: int, claim: Claim, question: str, candidates, summarize) -> list[Question]:
+def route_state(claim_text: str, context: str = "") -> str:
     # the sentence before the claim rides along, otherwise "i didn't touch it"
-    # gives jev nothing to resolve "it" against (two real false positives)
-    state = f"the agent's claim: {claim.text}"
-    if claim.context:
-        state += f"\n(the sentence right before it, for what 'it' refers to: {claim.context})"
+    # gives jev nothing to resolve "it" against (two real false positives).
+    # public on purpose: the router eval (evals/run_router.py) imports this so
+    # it asks jev the exact same state production does, drift is impossible.
+    state = f"the agent's claim: {claim_text}"
+    if context:
+        state += f"\n(the sentence right before it, for what 'it' refers to: {context})"
+    return state
+
+
+def route_text(question: str, candidate_summary: str) -> str:
+    return f"{question} Candidate: {candidate_summary}"
+
+
+def _route_questions(idx: int, claim: Claim, question: str, candidates, summarize) -> list[Question]:
+    state = route_state(claim.text, claim.context)
     return [
-        Question(qid=f"route:{idx}:{c.id}",
-                 text=f"{question} Candidate: {summarize(c)}",
-                 evidence=state)
+        Question(qid=f"route:{idx}:{c.id}", text=route_text(question, summarize(c)), evidence=state)
         for c in candidates[:MAX_CANDIDATES]
     ]
 
@@ -384,10 +446,18 @@ def build_receipts(trace: Trace, judge=None) -> list[Receipt]:
             else:
                 plan.append((idx, claim, RAN, commands, Q_ROUTE_CMD, _cmd_summary))
         elif kind == NEGATIVE:
+            clause = _negated_clause(claim.text)
+            named = _named_paths(clause)
+            allowed = bool(_ALLOWED_REGION.search(clause))
             if not mods:
                 receipts[idx] = Receipt(claim.text, SUPPORTED,
                                         "deterministic: no file writes in the trace at all, so nothing was touched",
                                         "", [claim.event_id])
+            elif named:
+                # the claim names a path, so this is fnmatch, not judgment. the
+                # router eval showed only 1 of 6 real touches clears the .8
+                # accusation bar, code has to narrow first.
+                receipts[idx] = _check_named_path_negative(claim, named, clear, unclear, allowed)
             elif not clear:
                 receipts[idx] = Receipt(claim.text, UNVERIFIED,
                                         f"{len(unclear)} shell write{'s' if len(unclear) > 1 else ''} with unreadable targets happened, can't confirm nothing was touched",

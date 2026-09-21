@@ -1,0 +1,72 @@
+{
+  "date": "2026-09-21",
+  "routing": {
+    "total": {
+      "n": 36,
+      "correct": 35
+    },
+    "per_kind": {
+      "edit_relevance": {
+        "n": 12,
+        "correct": 11,
+        "wrong": [
+          {
+            "case": {
+              "claim": "Fixed the memory leak in the worker.",
+              "candidate": "edit to docs/CHANGELOG.md: '## 1.0.1: fixed the memory leak in the worker'",
+              "expected": false,
+              "note": "tricky: documenting a fix is not the fix"
+            },
+            "expected": false,
+            "got": true,
+            "p_yes": 0.5
+          }
+        ]
+      },
+      "command_relevance": {
+        "n": 12,
+        "correct": 12,
+        "wrong": []
+      },
+      "negative_touch": {
+        "n": 12,
+        "correct": 12,
+        "wrong": []
+      }
+    },
+    "negative_touch_accusation_bar": {
+      "n": 6,
+      "cleared": 1
+    }
+  },
+  "classification": {
+    "n": 20,
+    "correct": 18,
+    "wrong": [
+      {
+        "case": {
+          "text": "It fails without the fix and passes with it.",
+          "expected": "test-pass",
+          "note": "known gap: no test word in the sentence, the regex will call it changed"
+        },
+        "got": "changed"
+      },
+      {
+        "case": {
+          "text": "No changes to the API.",
+          "expected": "negative",
+          "note": "known gap: negation noun with no verb after it, falls through to other"
+        },
+        "got": "other"
+      }
+    ]
+  },
+  "stats": {
+    "judgments": 36,
+    "calls": 24,
+    "wall_seconds": 0.943,
+    "input_tokens": 8061,
+    "output_tokens": 708,
+    "cost_usd": 0.00033856
+  }
+}

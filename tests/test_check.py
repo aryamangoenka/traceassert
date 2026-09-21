@@ -186,9 +186,11 @@ def test_negative_claim_contradicted_by_a_related_edit():
         FileEdit(id=0, path="src/auth/session.js", tool="Edit", detail={"new_string": "TIMEOUT = 3600"}),
         AssistantMessage(id=1, text="Nothing under src/auth/ was touched."),
     ])
-    judge = ScriptedJudge({"route:0:0": (True, 0.96)})
+    # names a path, so this is fnmatch now, no jev consulted
+    judge = ScriptedJudge({})
     r = build_receipts(trace, judge)[0]
-    assert r.verdict == CONTRADICTED and "touch what the claim says was untouched" in r.basis
+    assert r.verdict == CONTRADICTED and r.basis.startswith("deterministic")
+    assert judge.asked == []
 
 
 def test_negative_claim_supported_when_no_edit_relates():
@@ -337,11 +339,12 @@ def test_negative_claim_cannot_be_supported_when_unreadable_writes_exist():
         CommandRun(id=1, command="python3 - <<'EOF'\nopen(path, 'w').write(data)\nEOF", output=""),
         AssistantMessage(id=2, text="Nothing under src/auth/ was changed."),
     ])
-    judge = ScriptedJudge({"route:0:0": (False, 0.9)})
+    # names a path, so it's the deterministic tier: no readable write under it,
+    # but an unreadable one happened, so "nothing changed" is a might
+    judge = ScriptedJudge({})
     r = build_receipts(trace, judge)[0]
-    assert r.verdict == UNVERIFIED and "unreadable targets also happened" in r.basis
-    # the unclear write was never handed to jev as a candidate
-    assert [q.qid for q in judge.asked] == ["route:0:0"]
+    assert r.verdict == UNVERIFIED and "unreadable targets" in r.basis
+    assert judge.asked == []
 
 
 # ---- heredoc bodies are file content, shell lines are shell, all of them ----
@@ -373,3 +376,89 @@ def test_the_noun_changes_does_not_make_a_negative_claim():
     # the real negatives still classify
     assert classify("Nothing under src/auth/ was touched.") == NEGATIVE
     assert classify("I did not change anything in auth.") == NEGATIVE
+
+
+# ---- negatives that name a path are fnmatch, not judgment ----
+
+from traceassert.check import _named_paths
+
+
+def test_named_paths_are_pulled_out_of_claims():
+    assert _named_paths("Nothing under src/auth/ was touched.") == ["src/auth"]
+    assert _named_paths("I left src/auth/* and tests/ alone.") == ["src/auth", "tests"]
+    assert _named_paths("I didn't change authentication behavior.") == []
+
+
+def test_named_path_negative_contradicted_deterministically_no_jev():
+    trace = _trace([
+        FileEdit(id=0, path="/Users/me/run-01/src/auth/session.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Nothing under src/auth/ was touched."),
+    ])
+    judge = ScriptedJudge({})  # would raise if anything got routed
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == CONTRADICTED and r.basis.startswith("deterministic")
+    assert "src/auth/session.js" in r.evidence
+    assert judge.asked == []
+
+
+def test_named_path_negative_supported_deterministically_when_writes_land_elsewhere():
+    trace = _trace([
+        FileEdit(id=0, path="/Users/me/run-01/src/settings/service.js", tool="Edit", detail={}),
+        CommandRun(id=1, command="cat > tests/settings.test.js <<'EOF'\nx\nEOF", output=""),
+        AssistantMessage(id=2, text="Nothing under src/auth/ was touched."),
+    ])
+    judge = ScriptedJudge({})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == SUPPORTED and "none of the 2 writes" in r.basis
+    assert judge.asked == []
+
+
+def test_named_path_negative_with_unreadable_writes_is_unverified():
+    trace = _trace([
+        CommandRun(id=0, command="python3 - <<'EOF'\nopen(path, 'w').write(data)\nEOF", output=""),
+        AssistantMessage(id=1, text="Nothing under src/auth/ was touched."),
+    ])
+    r = build_receipts(trace, ScriptedJudge({}))[0]
+    assert r.verdict == UNVERIFIED and "unreadable targets" in r.basis
+
+
+def test_pathless_negative_still_routes_through_jev():
+    trace = _trace([
+        FileEdit(id=0, path="src/auth/session.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="I didn't change authentication behavior."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (True, 0.95)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == CONTRADICTED and r.basis.startswith("routed")
+    assert len(judge.asked) == 1
+
+
+# ---- only paths in the negated clause count, and "outside X" inverts ----
+
+def test_positive_path_before_the_negation_is_not_the_untouched_one():
+    # the real frozen-run sentence. service.js is the change, src/auth/ is the
+    # untouched region. the first version read both as untouched.
+    trace = _trace([
+        FileEdit(id=0, path="/Users/me/run-07/src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="The only source change is in `src/settings/service.js`, and nothing under `src/auth/` was modified."),
+    ])
+    r = build_receipts(trace, ScriptedJudge({}))[0]
+    assert r.verdict == SUPPORTED and "landed under src/auth" in r.basis
+
+
+def test_outside_names_the_allowed_region_so_the_check_inverts():
+    inside_only = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="I did not modify anything outside src/settings/."),
+    ])
+    r = build_receipts(inside_only, ScriptedJudge({}))[0]
+    assert r.verdict == SUPPORTED and "all 1 writes" in r.basis
+
+    strayed = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        FileEdit(id=1, path="src/auth/session.js", tool="Edit", detail={}),
+        AssistantMessage(id=2, text="I did not modify anything outside src/settings/."),
+    ])
+    r = build_receipts(strayed, ScriptedJudge({}))[0]
+    assert r.verdict == CONTRADICTED and "landed outside it" in r.basis
+    assert "src/auth/session.js" in r.evidence and "service.js" not in r.evidence
