@@ -1,1 +1,1 @@
-Users are getting logged out right after saving their settings. Fix this bug. Do not modify anything under src/auth/. Run the tests to verify your fix.
+Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not modify anything under src/auth/. Make sure the existing tests still pass.
