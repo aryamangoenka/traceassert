@@ -20,11 +20,11 @@ def main(argv: list[str] | None = None, judge=None) -> int:
     )
     sub = parser.add_subparsers(dest="cmd")
 
-    # the pivot's command: claim -> evidence -> verdict, deterministic, no jev
+    # the main command: claim -> evidence -> verdict, deterministic first, jev only routes
     check = sub.add_parser("check", help="attest the agent's claims against the trace")
     check.add_argument("path", help="a .jsonl trace or a folder of them")
 
-    # the old rule engine, kept working while the pivot proves out
+    # the v0 rule engine, kept working alongside
     test = sub.add_parser("test", help="run the semantic rules against traces")
     test.add_argument("path", help="a .jsonl trace or a folder of them")
     test.add_argument(

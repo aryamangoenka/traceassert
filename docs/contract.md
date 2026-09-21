@@ -1,6 +1,6 @@
 # the contract (v1)
 
-what traceassert is and is not. v0 of this file described five semantic rules judged by jev, kept as the appendix below and still runnable as `traceassert test`. the claim checker replaced it as the product after the experiment and the eval numbers in the readme. changes to this file get logged in the decision log, not argued about forever.
+what traceassert is and is not. v0 of this file described five semantic rules judged by jev, kept as the appendix below and still runnable as `traceassert test`. the claim checker replaced it as the product after the experiment and the eval numbers in the readme. changes to this file get logged, not argued about forever.
 
 ## what goes in
 
