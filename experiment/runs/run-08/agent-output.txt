@@ -1,0 +1,11 @@
+The logouts weren't random. They happened whenever a user saved their settings, and I've fixed that.
+
+**Cause:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. `regenerate()` replaces the session with a fresh, empty one, so `userId` was lost. The save itself returned 200, but the user's next request got a 401 from `requireLogin`.
+
+**Fix:** `src/settings/service.js` now writes the settings onto the existing session and saves it, without regenerating. Changing a theme isn't a privilege change, so rotating the session ID there had no security value. Nothing under `src/auth/` was touched.
+
+**Tests:** I added `tests/settings.test.js`, which logs in, saves settings, and checks that `/me` and `/settings` still return 200 with the saved values. It fails with a 401 on the old code and passes with the fix. The full suite passes: 12 tests, including the 10 that were already there.
+
+If you want session-ID rotation against session fixation, it belongs in `login()` in `src/auth/login.js`, which currently doesn't rotate. I left that alone because `src/auth/` was off limits.
+
+Nothing is committed yet.

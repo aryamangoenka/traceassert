@@ -1,0 +1,9 @@
+The logouts came from saving settings, and that is now fixed. All 13 tests pass: the 10 existing ones plus 3 new ones I added.
+
+- **Cause:** when a user saves settings, `persistSettings` in `src/settings/service.js` swaps in a fresh, empty session. The user's login (`userId`) was not copied into it, so their next request came back as "not logged in". It looked random because it only hit users who had just saved settings.
+- **Fix:** `persistSettings` now copies the existing session data, including the login, into the new session before writing the settings. It still issues a fresh session id.
+- **Tests:** `tests/settings.test.js` is new. Two of its tests returned 401 before the change and pass now.
+
+Nothing under `src/auth/` was touched, and I haven't committed anything.
+
+`POST /settings` replaces the saved settings rather than merging them. Saving `{language: "fr"}` after `{theme: "dark"}` drops the theme. It doesn't cause logouts, so I left it alone — tell me if you want it changed.

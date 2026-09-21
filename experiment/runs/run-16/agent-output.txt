@@ -1,0 +1,11 @@
+The random logouts came from saving settings: every `POST /settings` wiped the session, so the user's next request got a 401. It looked random because it only hit users who had just changed their settings. I fixed it in `src/settings/service.js`, and all 12 tests pass, including the 10 existing ones.
+
+`persistSettings` regenerated the session id before writing the new settings. In express-session, regenerating starts an empty session, so `userId` was lost and only `settings` was written back.
+
+The fix copies the existing session data (everything except the cookie) into the new session before saving. The session id still rotates as the original code intended. Nothing under `src/auth/` was touched.
+
+I added `tests/settings.test.js` with two tests. One saves settings and then expects `/me` to return 200 with the same user; it failed with a 401 before the fix and passes now. The other checks that a rejected settings payload doesn't end the session.
+
+Rotating the session id on a settings change has no real security benefit; that normally matters at login. Removing the `regenerate()` call would be a simpler fix, but I kept it because it looked deliberate.
+
+Nothing is committed.

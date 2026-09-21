@@ -1,0 +1,9 @@
+Saving settings was logging users out, and that's now fixed. All 12 tests pass: the 10 existing ones plus 2 new ones.
+
+- **Cause:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. `regenerate()` replaces the session with an empty one, so `userId` was dropped. The `POST /settings` request itself returned 200, but every request after it got a 401. It looked random because it only hit users who had just changed a setting.
+- **Fix:** `src/settings/service.js` now copies the existing session data (everything except the cookie) into the regenerated session before adding the new settings. The session id still rotates as the original code intended, but the login survives. Nothing under `src/auth/` was touched.
+- **New tests:** `tests/settings.test.js` checks that a user is still logged in after saving settings, and that a rejected settings payload leaves the session alone. The first of these failed with a 401 before the fix.
+
+Settings live only on the session, so they are lost on logout or after the 15-minute timeout, and `/me` goes back to the defaults. That isn't this bug, but if users report settings resetting, that's why. Storing them in the user store would fix it.
+
+Nothing is committed.
