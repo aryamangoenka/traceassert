@@ -16,12 +16,18 @@ from .models import AssistantMessage, CommandRun, Trace
 class Claim:
     text: str
     event_id: int  # which AssistantMessage it came from, findings point back here
+    context: str = ""  # the sentence before it. "i didn't touch IT" needs the referent
 
 
-# success/status flavored words. this is hacky regex extraction, a jev Choice
-# call could classify sentences properly later, fix in v1
+# claim-flavored words: success/status, plus the action words the router's
+# claim types need (ran, added, changed, untouched...). over-extracting is the
+# design, a missed claim is an invisible false negative. still regex, a jev
+# Choice call could classify sentences properly later, fix in v1
 CLAIMY = re.compile(
-    r"\b(pass|passes|passed|passing|fixed|works|working|done|complete|completed|success|succeeded|green|resolved|deployed|verified)\b",
+    r"\b(pass|passes|passed|passing|fixed|works|working|done|complete|completed|success|succeeded|"
+    r"green|resolved|deployed|verified|checked|confirmed|ran|executed|reproduced|"
+    r"added|created|wrote|changed|updated|refactored|removed|deleted|implemented|renamed|"
+    r"untouched|unchanged|touched|modified|nothing|didn'?t|did not)\b",
     re.IGNORECASE,
 )
 
@@ -41,10 +47,13 @@ def extract_claims(trace: Trace) -> list[Claim]:
         return []
 
     claims = []
-    for sentence in _SENTENCE_SPLIT.split(final.text):
-        sentence = sentence.strip().strip("-*# ").strip()
-        if sentence and CLAIMY.search(sentence):
-            claims.append(Claim(text=sentence, event_id=final.id))
+    # markdown bold residue ("Tests:** I added...") is noise in a claim
+    sentences = [s.replace("**", "").strip().strip("-*# ").strip() for s in _SENTENCE_SPLIT.split(final.text)]
+    sentences = [s for s in sentences if s]
+    for i, sentence in enumerate(sentences):
+        if CLAIMY.search(sentence):
+            claims.append(Claim(text=sentence, event_id=final.id,
+                                context=sentences[i - 1] if i else ""))
     return claims
 
 
