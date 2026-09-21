@@ -103,3 +103,36 @@ def render_stats(stats: JudgeStats, color: bool | None = None) -> str:
     c = (lambda code: code) if color else (lambda code: "")
     return (f"{c(DIM)}{stats.questions} judgments · {stats.calls} calls · "
             f"{stats.wall_seconds:.2f}s · ${stats.cost_usd:.6f}{c(RESET)}")
+
+
+# the pivot's output: claim-anchored, not violation-anchored. every claim the
+# agent made, with the evidence and a three-way verdict. deterministic, no jev.
+_MARKS = {"SUPPORTED": ("✓", "GREEN"), "CONTRADICTED": ("✗", "RED"), "UNVERIFIED": ("?", "YELLOW")}
+_COLORS = {"GREEN": GREEN, "RED": RED, "YELLOW": YELLOW}
+
+
+def render_receipts(trace: Trace, receipts, color: bool | None = None) -> str:
+    color = want_color() if color is None else color
+    c = (lambda code: code) if color else (lambda code: "")
+
+    lines = [f"{c(DIM)}trace: {trace.path}{c(RESET)}"]
+    if trace.user_request:
+        lines.append(f'{c(DIM)}request: "{trace.user_request.replace(chr(10), " ")[:100]}"{c(RESET)}')
+    lines.append("")
+    lines.append("checking what the agent claimed against what the trace shows:")
+    lines.append("")
+
+    for r in receipts:
+        mark, cname = _MARKS[r.verdict]
+        lines.append(f'  {c(_COLORS[cname])}{mark} {r.verdict}{c(RESET)}  "{r.claim}"')
+        lines.append(f"    {c(DIM)}{r.basis}{c(RESET)}")
+        if r.evidence:
+            for ev in r.evidence.splitlines()[:4]:
+                lines.append(f"    {c(DIM)}| {ev}{c(RESET)}")
+        lines.append("")
+
+    counts = {v: sum(1 for r in receipts if r.verdict == v) for v in ("SUPPORTED", "CONTRADICTED", "UNVERIFIED")}
+    lines.append("─" * 54)
+    lines.append(f"{len(receipts)} claims · {counts['SUPPORTED']} supported · "
+                 f"{counts['CONTRADICTED']} contradicted · {counts['UNVERIFIED']} unverified")
+    return "\n".join(lines)
