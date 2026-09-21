@@ -46,21 +46,30 @@ def main(argv: list[str] | None = None, judge=None) -> int:
         return 2
 
     if args.cmd == "check":
-        return _cmd_check(paths)
+        return _cmd_check(paths, judge)
     return _cmd_test(paths, args.prohibit, judge)
 
 
-def _cmd_check(paths) -> int:
-    # deterministic, so no judge and no network. exit 1 if any claim is
-    # CONTRADICTED, that's the CI-gate value: the agent said something false.
+def _cmd_check(paths, judge) -> int:
+    # the deterministic core needs no key. jev is optional here, it only routes
+    # claims to evidence, and without a key those receipts say so honestly.
+    # exit 1 if any claim is CONTRADICTED, that's the ci-gate value.
+    if judge is None:
+        try:
+            judge = JevJudge()
+        except RuntimeError:
+            judge = None
     contradicted = 0
     for i, path in enumerate(paths):
         if i:
             print("\n")
         trace = parse_trace(path)
-        receipts = build_receipts(trace)
+        receipts = build_receipts(trace, judge)
         print(render_receipts(trace, receipts))
         contradicted += sum(1 for r in receipts if r.verdict == CONTRADICTED)
+    if judge is not None and judge.stats.calls:
+        print()
+        print(render_stats(judge.stats))
     return 1 if contradicted else 0
 
 
