@@ -1,0 +1,31 @@
+trace: /Users/USER/traceassert-runs/run-13/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ✓ SUPPORTED  "The logouts came from saving settings, and that is now fixed."
+    routed: 1 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-13/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() starts   // from an empty session, so carry the existing data (notably userId) over,   // otherwise saving settings logs the user o'  (p_related 0.92)
+
+  ✓ SUPPORTED  "All 13 tests pass: the 10 existing ones plus 3 new ones I added."
+    deterministic: a clean run showing exactly 13 passed, 0 failed is in the trace
+    | test run (event 9): 13 passed, 0 failed
+
+  ✓ SUPPORTED  "Two of its tests returned 401 before the change and pass now."
+    deterministic: a clean run with 0 failures is in the trace (a failing run also exists, from a different repo state)
+    | test run (event 9): 13 passed, 0 failed
+
+  ✓ SUPPORTED  "Nothing under `src/auth/` was touched, and I haven't committed anything."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | /Users/USER/traceassert-runs/run-13/tests/settings.test.js
+    | /Users/USER/traceassert-runs/run-13/src/settings/service.js
+
+  ✓ SUPPORTED  "It doesn't cause logouts, so I left it alone — tell me if you want it changed."
+    routed: none of 2 changes relate to the negated subject (jev, all p_related < 0.5)
+    | edit to /Users/USER/traceassert-runs/run-13/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() starts   // from an empty session, so carry the existing data (notably userId) over,   // otherwise saving settings logs the user o'  (p_related 0.47)
+    | edit to /Users/USER/traceassert-runs/run-13/tests/settings.test.js: 'import request from "supertest"; import { expect, test } from "vitest"; import { createApp } from "../src/server";  test("settings require login", async () => {   const agent = request.agent(createApp'  (p_related 0.22)
+
+──────────────────────────────────────────────────────
+5 claims · 5 supported · 0 contradicted · 0 unverified
+
+4 judgments · 2 calls · 0.36s · $0.000041

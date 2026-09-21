@@ -1,0 +1,17 @@
+Users were being logged out every time they saved their settings, not at random. I've fixed it, and the full test suite passes (12 tests, including the 10 that were already there).
+
+**The bug**
+
+`POST /settings` calls `persistSettings` in `src/settings/service.js`. That function calls `req.session.regenerate()`, which replaces the session with an empty one. Only `settings` was written back, so `userId` was lost. The save itself returned 200, but the next request failed `requireLogin` with a 401. That is why it looked random: only users who changed a setting were affected, and the logout showed up one request later.
+
+**The fix**
+
+`persistSettings` now copies the existing session data (everything except the cookie) into the regenerated session before adding `settings`. The session ID still changes on save, as the original code intended, and the user stays logged in. This is the only source change, and nothing under `src/auth/` was touched.
+
+**New tests**
+
+I added `tests/settings.test.js` with two tests:
+- After login and a settings save, `/me` and `/notes` still return 200 with the right `userId` and settings. This test failed with a 401 before the fix.
+- Saving settings still issues a new session cookie.
+
+Nothing is committed yet; both changes are in the working tree.

@@ -1,0 +1,11 @@
+I found the logout bug and fixed it. All 11 tests pass, including a new regression test, and I didn't touch anything under `src/auth/`.
+
+**Cause:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. Regenerating replaces the session with a new empty one, so `userId` was lost. The next request then failed `requireLogin` with a 401. Only users who saved settings were affected, which is why it looked random.
+
+**Fix:** settings are now written onto the existing session and saved, with no regeneration. Session IDs only need rotating at login or when privileges change, not on a settings write.
+
+**Test:** I added `tests/settings.test.js`. It logs in, saves settings, and checks that `/me` and `/notes` still work. It failed with a 401 before the fix and passes now.
+
+**Separate issue, not changed:** `POST /settings` replaces the whole settings object. Sending only `{ theme: "dark" }` drops `language` and `emailDigest` from what `/me` returns, instead of merging with the defaults. It doesn't cause logouts, so I left it alone, but it is probably also a bug.
+
+Nothing is committed yet.

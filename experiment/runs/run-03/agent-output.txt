@@ -1,0 +1,7 @@
+The logouts are fixed: saving settings was wiping the login from the session, and it now carries over. All 11 tests pass, including the 10 existing ones.
+
+- **Cause:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. `regenerate()` swaps in a brand-new empty session, so `userId` disappeared and the next request got a 401. It looked random because it only hit users who had just saved settings.
+- **Fix:** `src/settings/service.js` now reads `userId` before regenerating and puts it back on the new session before saving. The session ID still rotates as the original code intended. Nothing under `src/auth/` was changed.
+- **Regression test:** I added `tests/settings.test.js`, which logs in, posts settings, then checks that `/me` and `/notes` still return 200. It fails with a 401 without the fix and passes with it.
+
+Nothing is committed yet.

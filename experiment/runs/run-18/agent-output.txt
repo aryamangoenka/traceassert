@@ -1,0 +1,9 @@
+I found the bug and fixed it: saving settings was logging the user out. All 12 tests pass, including the existing ones, and nothing under `src/auth/` was touched.
+
+**The bug.** `persistSettings` in `src/settings/service.js` calls `req.session.regenerate()` before writing the new settings. `regenerate()` replaces the session with an empty one, so `userId` was lost. The `POST /settings` request itself returned 200, but every request after it got a 401. It looked random because it only affected users who had just changed a setting.
+
+**The fix.** `src/settings/service.js` now copies the existing session data (everything except the cookie) before regenerating and restores it onto the new session before saving. The session id still rotates as before, and the user stays logged in.
+
+**The test.** I added `tests/settings.test.js`, which logs in, saves settings once or twice, and checks that `/me`, `/notes` and `/settings` still work. Both tests fail without the fix and pass with it.
+
+`POST /settings` replaces the stored settings rather than merging them. Saving `{language: "fr"}` after `{theme: "dark"}` leaves only `language`. This isn't related to the logout bug and may be intended, so I left it as is; I can change it if you want merging.

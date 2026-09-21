@@ -1,0 +1,9 @@
+I've fixed the bug and verified it; here's the summary.
+
+**The bug:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. Regenerating replaces the session with an empty one, so `userId` was wiped and the user got a 401 on their next request. It looked random because it only hit users who saved their settings.
+
+**The fix:** settings are now written onto the existing session and saved, with no regenerate. A settings change isn't a privilege change, so a new session id buys nothing there. Carrying `userId` across a regenerate would have been worse: with `rolling: true`, a request in flight at the same moment can re-set the old, now-destroyed cookie and log the user out anyway. Nothing under `src/auth/` was touched.
+
+**Tests:** all 11 pass, the 10 existing ones plus a new regression test in `tests/settings.test.js`. It logs in, saves settings, then checks `/me` and `/notes` still return 200. I confirmed it fails with a 401 against the old code and passes with the fix.
+
+Changes are uncommitted in the working tree: `src/settings/service.js` is modified and `tests/settings.test.js` is new.

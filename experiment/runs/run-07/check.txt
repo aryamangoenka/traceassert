@@ -1,0 +1,34 @@
+trace: /Users/USER/traceassert-runs/run-07/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ? UNVERIFIED  "I found the logout bug and fixed it."
+    routed: 2 changes happened but jev tied none to this claim (best p_related below)
+    | shell write to src/settings/service.js: cat > src/settings/service.js <<'EOF'  (p_related 0.37)
+    | shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'  (p_related 0.25)
+
+  ✓ SUPPORTED  "All 11 tests pass, including a new regression test, and I didn't touch anything under `src/auth/`."
+    deterministic: a clean run showing exactly 11 passed, 0 failed is in the trace
+    | test run (event 6): 11 passed, 0 failed
+
+  ✓ SUPPORTED  "Test: I added `tests/settings.test.js`."
+    deterministic: 1 test file written in the trace
+    | tests/settings.test.js (event 4)
+
+  ✓ SUPPORTED  "It failed with a 401 before the fix and passes now."
+    routed: 1 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'  (p_related 0.55)
+
+  ✓ SUPPORTED  "Separate issue, not changed: `POST /settings` replaces the whole settings object."
+    routed: none of 2 changes relate to the negated subject (jev, all p_related < 0.5)
+    | shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'  (p_related 0.46)
+    | shell write to src/settings/service.js: cat > src/settings/service.js <<'EOF'  (p_related 0.42)
+
+  ? UNVERIFIED  "Nothing is committed yet."
+    no deterministic check for this kind of claim yet
+
+──────────────────────────────────────────────────────
+6 claims · 4 supported · 0 contradicted · 2 unverified
+
+6 judgments · 3 calls · 0.50s · $0.000048

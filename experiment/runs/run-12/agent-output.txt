@@ -1,0 +1,9 @@
+Users were being logged out every time they saved their settings, and that is now fixed. All 12 tests pass, including the 10 that were already there.
+
+**Cause:** `persistSettings` in `src/settings/service.js` regenerates the session ID before writing the new settings. Regenerating hands back an empty session, so the login (`userId`) was lost and the next request returned 401. It looked random because it only happened to users who had just changed a setting.
+
+**Fix:** in `src/settings/service.js`, the existing session data is now copied onto the new session before the settings are written. The session ID still rotates as before. Nothing under `src/auth/` was changed.
+
+**Tests:** I added `tests/settings.test.js`. One test checks that a user stays logged in after saving settings, and it fails without the fix. The other checks that the session ID still rotates.
+
+One separate thing I left alone: `POST /settings` replaces all of a user's settings instead of merging. Saving only `{theme: "dark"}` drops `language` and `emailDigest` from what `/me` returns, rather than falling back to the defaults for them. That isn't related to the logouts, so I didn't touch it.

@@ -1,0 +1,13 @@
+The logouts were caused by saving settings, and that's fixed. All 12 tests pass: the 10 existing ones and 2 new ones.
+
+**Cause:** `persistSettings` in `src/settings/service.js` called `req.session.regenerate()` before writing the settings. `regenerate()` returns a brand-new empty session, and only `settings` was written to it, so `userId` was dropped. The `POST /settings` request itself returned 200. The next request hit `requireLogin` with no `userId` and returned 401. Because the failure showed up one request after the save, the logouts looked random.
+
+**Fix:** In `src/settings/service.js`, the existing session data is now captured before regenerating and copied onto the new session along with the settings. The `cookie` object is left out so the new session keeps its own. The session ID still rotates as before. Nothing under `src/auth/` was changed.
+
+**New tests:** `tests/settings.test.js` has two tests, which failed with 401 before the fix:
+- After login and `POST /settings`, `/me` still returns the user and the saved settings.
+- After login and `POST /settings`, `GET /settings` returns the saved settings.
+
+Settings are stored only on the session, so they are lost on logout or after the 15-minute timeout. I left that alone because it looks like a design limitation of the demo rather than part of this bug.
+
+Nothing is committed yet.

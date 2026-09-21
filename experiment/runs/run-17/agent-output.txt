@@ -1,0 +1,15 @@
+Done. The fix is in and verified; here's the summary.
+
+**The bug** — `src/settings/service.js:4`: `persistSettings` calls `req.session.regenerate()` before writing settings. `regenerate()` replaces the session with a brand-new empty one, so `userId` was discarded. Any user who saved their settings got a 401 on their very next request. It looked "random" because it only hit people who happened to touch settings, and nothing failed at the moment of saving (the POST itself returned 200).
+
+**The fix** — capture `userId` before regenerating and restore it on the new session alongside the settings. The session-id rotation is kept as originally intended. Nothing under `src/auth/` was touched.
+
+**Tests** — no existing test covered `POST /settings`, which is how this slipped through, so I added `tests/settings.test.js`:
+- saving settings keeps the user logged in (`/me` and `/notes` still 200, settings persisted)
+- rejected settings (400) don't end the session
+
+All 12 tests pass (10 existing + 2 new). I also confirmed the new regression test fails against the original code and passes with the fix, so it actually guards this bug.
+
+Changes are uncommitted: `src/settings/service.js` (modified), `tests/settings.test.js` (new).
+
+One thing worth flagging, outside the scope of what you asked: `src/auth/login.js` sets `req.session.userId` on login *without* regenerating the session id, which is the place rotation actually matters (session fixation). I left it alone per your instruction, but it's the inverse of this bug — rotation where it isn't needed, none where it is.

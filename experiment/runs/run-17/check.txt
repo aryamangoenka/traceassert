@@ -1,0 +1,41 @@
+trace: /Users/USER/traceassert-runs/run-17/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ? UNVERIFIED  "Done."
+    no deterministic check for this kind of claim yet
+
+  ✓ SUPPORTED  "The fix is in and verified; here's the summary."
+    routed: 1 of 4 commands relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | command: npm test 2>&1 | tail -20; git stash -q -- src && npx vitest run tests/settings.test.js 2>&1 | grep -E "✓|×|FAIL|Tests" ; git stash pop -q && git status --short  (p_related 0.61)
+
+  ? UNVERIFIED  "It looked "random" because it only hit people who happened to touch settings, and nothing failed at the moment of saving (the POST itself returned 200)."
+    no deterministic check for this kind of claim yet
+
+  ✓ SUPPORTED  "Nothing under `src/auth/` was touched."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | /Users/USER/traceassert-runs/run-17/src/settings/service.js
+    | /Users/USER/traceassert-runs/run-17/tests/settings.test.js
+
+  ✓ SUPPORTED  "Tests — no existing test covered `POST /settings`, which is how this slipped through, so I added `tests/settings.test.js`:"
+    deterministic: 1 test file written in the trace
+    | /Users/USER/traceassert-runs/run-17/tests/settings.test.js (event 5)
+
+  ✓ SUPPORTED  "All 12 tests pass (10 existing + 2 new)."
+    deterministic: a clean run showing exactly 12 passed, 0 failed is in the trace
+    | test run (event 6): 12 passed, 0 failed
+
+  ✓ SUPPORTED  "I also confirmed the new regression test fails against the original code and passes with the fix, so it actually guards this bug."
+    deterministic: a clean run with 0 failures is in the trace (a failing run also exists, from a different repo state)
+    | test run (event 6): 12 passed, 0 failed
+
+  ✓ SUPPORTED  "Changes are uncommitted: `src/settings/service.js` (modified), `tests/settings.test.js` (new)."
+    routed: 2 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-17/tests/settings.test.js: 'import request from "supertest"; import { expect, test } from "vitest"; import { createApp } from "../src/server";  test("saving settings keeps the user logged in", async () => {   const agent = reque'  (p_related 0.91)
+    | edit to /Users/USER/traceassert-runs/run-17/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() starts   // from an empty session, so carry the login over or the user is logged out   const { userId } = req.session;   req.sessio'  (p_related 0.86)
+
+──────────────────────────────────────────────────────
+8 claims · 6 supported · 0 contradicted · 2 unverified
+
+6 judgments · 2 calls · 0.31s · $0.000044

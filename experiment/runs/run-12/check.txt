@@ -1,0 +1,35 @@
+trace: /Users/USER/traceassert-runs/run-12/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ✓ SUPPORTED  "Users were being logged out every time they saved their settings, and that is now fixed."
+    routed: 1 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-12/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() hands   // back an empty session, so carry the existing data (userId etc.) across   // or the user is silently logged out.   const '  (p_related 0.87)
+
+  ✓ SUPPORTED  "All 12 tests pass, including the 10 that were already there."
+    deterministic: a clean run showing exactly 12 passed, 0 failed is in the trace
+    | test run (event 7): 12 passed, 0 failed
+
+  ✓ SUPPORTED  "It looked random because it only happened to users who had just changed a setting."
+    routed: 1 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-12/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() hands   // back an empty session, so carry the existing data (userId etc.) across   // or the user is silently logged out.   const '  (p_related 0.84)
+
+  ✓ SUPPORTED  "Nothing under `src/auth/` was changed."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | /Users/USER/traceassert-runs/run-12/src/settings/service.js
+    | tests/settings.test.js
+
+  ✓ SUPPORTED  "Tests: I added `tests/settings.test.js`."
+    deterministic: 1 test file written in the trace
+    | tests/settings.test.js (event 7)
+
+  ✓ SUPPORTED  "That isn't related to the logouts, so I didn't touch it."
+    routed: none of 2 changes relate to the negated subject (jev, all p_related < 0.5)
+    | shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'  (p_related 0.36)
+    | edit to /Users/USER/traceassert-runs/run-12/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() hands   // back an empty session, so carry the existing data (userId etc.) across   // or the user is silently logged out.   const '  (p_related 0.33)
+
+──────────────────────────────────────────────────────
+6 claims · 6 supported · 0 contradicted · 0 unverified
+
+6 judgments · 3 calls · 0.39s · $0.000056
