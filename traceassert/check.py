@@ -1,4 +1,4 @@
-# the pivot. instead of judging whether the agent was "good", we take each
+# the claim checker. instead of judging whether the agent was "good", we take each
 # claim in its final summary, attach the trace evidence, and let DETERMINISTIC
 # facts set the verdict. jev shows up in exactly one role: a router that says
 # which evidence RELATES to a claim. it never classifies claims (code does,

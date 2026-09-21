@@ -1,4 +1,4 @@
-# smoke eval for the pivot's two unmeasured pieces: the jev router (does it
+# smoke eval for the two pieces that had no number yet: the jev router (does it
 # say the right things RELATE) and the regex classifier (does it put claims
 # in the right bin). the deterministic verdicts already have a number behind
 # them (grep), this gives the routed ones one too. not calibration, a smoke

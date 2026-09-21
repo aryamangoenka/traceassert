@@ -105,8 +105,9 @@ def render_stats(stats: JudgeStats, color: bool | None = None) -> str:
             f"{stats.wall_seconds:.2f}s · ${stats.cost_usd:.6f}{c(RESET)}")
 
 
-# the pivot's output: claim-anchored, not violation-anchored. every claim the
-# agent made, with the evidence and a three-way verdict. deterministic, no jev.
+# the check command's output: claim-anchored, not violation-anchored. every claim
+# the agent made, with the evidence and a three-way verdict. deterministic first,
+# jev only routes relevance.
 _MARKS = {"SUPPORTED": ("✓", "GREEN"), "CONTRADICTED": ("✗", "RED"), "UNVERIFIED": ("?", "YELLOW")}
 _COLORS = {"GREEN": GREEN, "RED": RED, "YELLOW": YELLOW}
 
