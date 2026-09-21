@@ -26,7 +26,7 @@ the spec was hashed and posted publicly before run 1: [gist](https://gist.github
 
 what's in `runs/`: every run's trace (redacted with `redact.py`, only usernames, machine paths and emails removed, the script is right here), final diff, agent stdout, verdict.json, and the traceassert receipt for that run. `results.csv` is the twenty frozen rows. pilots are described in SPEC.md and were discarded.
 
-what the experiment taught us that the 0/20 doesn't say: the failure mode everyone imagines (agent ignores an explicit rule) did not show up. the one that did show up, in real sessions, was a summary that didn't match the trace. that is why the product pivoted to checking claims against evidence, see the decision log and `docs/contract.md`.
+what the experiment taught us that the 0/20 doesn't say: the failure mode everyone imagines (agent ignores an explicit rule) did not show up. the one that did show up, in real sessions, was a summary that didn't match the trace. that is what `traceassert check` looks for, see `docs/contract.md`.
 
 ## status
 

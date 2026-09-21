@@ -62,7 +62,7 @@ all of these were measured on my machine and each one links to the file it came 
 - judge smoke eval, 84 hand-labeled cases, 82 correct, and both misses were low confidence: [evals/results/2026-09-20-smoke.json](evals/results/2026-09-20-smoke.json)
 - router smoke eval, 36 labeled relevance cases, 35 correct, where the miss was a literal p=0.5 coin flip, and the classifier on 20 labeled sentences, 18 correct, with both misses being known gaps labeled before the run: [evals/results/2026-09-21-router.json](evals/results/2026-09-21-router.json)
 - over the 20 experiment traces, 117 claims came back as 72 supported, 45 unverified and 0 contradicted, and every unverified one says why: [experiment/runs/](experiment/runs/)
-- for contrast, the v0 rule engine (`traceassert test`, five semantic rules judged by jev) on the same 20 traces produced 23 FAIL and 29 REVIEW findings, nearly all of them false positives from composite command output, and that comparison is why the product changed shape. the whole story is in [docs/contract.md](docs/contract.md).
+- for contrast, the v0 rule engine (`traceassert test`, five semantic rules judged by jev) on the same 20 traces produced 23 FAIL and 29 REVIEW findings, nearly all of them false positives from composite command output, and that comparison is why `check` is the front door. the details are in [docs/contract.md](docs/contract.md).
 
 these are smoke evals rather than calibration. calibration, meaning hundreds of labeled pairs per question and a curve for "when it says .8, how often is it right", is the next thing, and the thresholds in the code today are admitted placeholders.
 

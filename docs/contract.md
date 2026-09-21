@@ -1,6 +1,6 @@
 # the contract (v1)
 
-what traceassert is and is not. v0 of this file described five semantic rules judged by jev. that thesis got retired on sep 21 after a pre-registered experiment and a round of customer research (decision log has the whole story). the v0 rule engine still exists as `traceassert test`, see the appendix, but it is not the product. changes to this file get logged in the decision log, not argued about forever.
+what traceassert is and is not. v0 of this file described five semantic rules judged by jev, kept as the appendix below and still runnable as `traceassert test`. the claim checker replaced it as the product after the experiment and the eval numbers in the readme. changes to this file get logged in the decision log, not argued about forever.
 
 ## what goes in
 
