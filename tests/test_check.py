@@ -112,3 +112,264 @@ def test_clean_numbered_claim_is_supported():
     r = build_receipts(trace)
     assert r[0].verdict == SUPPORTED
     assert 0 in r[0].event_ids  # points at the run
+
+
+# ---- the jev router: code classifies, jev only says what RELATES ----
+
+from traceassert.check import CHANGED, NEGATIVE, RAN, ADDED_TESTS, classify
+from traceassert.judge import ScriptedJudge
+from traceassert.models import FileEdit
+
+
+def test_classification_is_deterministic_and_prioritised():
+    assert classify("All 12 tests pass.") == "test-pass"
+    assert classify("Nothing under src/auth/ was touched.") == NEGATIVE
+    assert classify("Added two regression tests.") == ADDED_TESTS
+    assert classify("I ran the full suite twice.") == RAN
+    assert classify("Fixed the session bug in settings.") == CHANGED
+    assert classify("Here is a haiku.") == "other"
+
+
+def test_added_tests_is_a_pure_path_check_no_jev():
+    trace = _trace([
+        FileEdit(id=0, path="tests/settings.test.js", tool="Write", detail={}),
+        AssistantMessage(id=1, text="Added two regression tests for the settings flow."),
+    ])
+    r = build_receipts(trace)[0]  # no judge passed, still decides
+    assert r.verdict == SUPPORTED and r.basis.startswith("deterministic")
+
+    lying = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Added two regression tests."),
+    ])
+    r = build_receipts(lying)[0]
+    assert r.verdict == CONTRADICTED and "touched a test path" in r.basis
+
+
+def test_changed_claim_with_zero_edits_is_contradicted_without_jev():
+    trace = _trace([
+        CommandRun(id=0, command="ls", output=""),
+        AssistantMessage(id=1, text="Fixed the crash on save."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == CONTRADICTED and "no file writes at all" in r.basis
+
+
+def test_changed_claim_routes_through_jev_and_evidence_decides():
+    trace = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={"new_string": "keep userId"}),
+        FileEdit(id=1, path="README.md", tool="Edit", detail={"new_string": "typo"}),
+        AssistantMessage(id=2, text="Fixed the settings save logging users out."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (True, 0.94), "route:0:1": (False, 0.90)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == SUPPORTED
+    assert r.basis.startswith("routed: 1 of 2 changes")
+    assert "service.js" in r.evidence and "README" not in r.evidence  # only matches are receipts
+    assert 0 in r.event_ids and 1 not in r.event_ids
+    # jev was asked ONLY relevance, once per candidate, never "is this true"
+    assert all("relevant" in q.text for q in judge.asked)
+
+
+def test_changed_claim_nothing_relates_is_unverified_not_contradicted():
+    trace = _trace([
+        FileEdit(id=0, path="docs/CHANGELOG.md", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Fixed the memory leak in the worker."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (False, 0.97)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == UNVERIFIED and "tied none" in r.basis
+
+
+def test_negative_claim_contradicted_by_a_related_edit():
+    trace = _trace([
+        FileEdit(id=0, path="src/auth/session.js", tool="Edit", detail={"new_string": "TIMEOUT = 3600"}),
+        AssistantMessage(id=1, text="Nothing under src/auth/ was touched."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (True, 0.96)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == CONTRADICTED and "touch what the claim says was untouched" in r.basis
+
+
+def test_negative_claim_supported_when_no_edit_relates():
+    trace = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Authentication code was left untouched."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (False, 0.93)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == SUPPORTED and "none of 1 changes relate" in r.basis
+
+
+def test_without_jev_routed_claims_say_so_instead_of_guessing():
+    trace = _trace([
+        FileEdit(id=0, path="src/x.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Fixed the thing."),
+    ])
+    r = build_receipts(trace, judge=None)[0]
+    assert r.verdict == UNVERIFIED and "routing not configured" in r.basis
+
+
+def test_all_routing_goes_out_in_one_batch():
+    trace = _trace([
+        FileEdit(id=0, path="a.js", tool="Edit", detail={}),
+        CommandRun(id=1, command="npm run lint", output="ok"),
+        AssistantMessage(id=2, text="Fixed a.js. I ran the linter too."),
+    ])
+
+    class Counting(ScriptedJudge):
+        calls = 0
+        def ask(self, qs):
+            type(self).calls += 1
+            return super().ask(qs)
+
+    # two sentences -> two claims (changed, ran) -> still exactly one ask()
+    judge = Counting({"route:0:0": (True, 0.9), "route:1:1": (True, 0.9)})
+    build_receipts(trace, judge)
+    assert Counting.calls == 1
+
+
+# ---- shell writes count as modifications, absence is not a contradiction ----
+
+from traceassert.check import _modifications
+
+
+def test_shell_written_test_file_supports_added_tests():
+    # frozen runs did this constantly: the test file arrives via a heredoc,
+    # so there is no FileEdit event. the old check called it a lie 10 times.
+    trace = _trace([
+        CommandRun(id=0, command="cat > tests/settings.test.js <<'EOF'\nimport ...\nEOF", output=""),
+        AssistantMessage(id=1, text="Added a regression test for the settings flow."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == SUPPORTED and "tests/settings.test.js" in r.evidence
+
+
+def test_unattributable_shell_write_downgrades_to_unverified():
+    # cp writes a file but we can't tell which from the command shape, so an
+    # added-tests claim becomes an honest gap, never a contradiction
+    trace = _trace([
+        CommandRun(id=0, command="cp scratch/new.test.js .", output=""),
+        AssistantMessage(id=1, text="Added a regression test."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == UNVERIFIED and "unreadable targets" in r.basis
+
+
+def test_changed_claim_with_shell_writes_routes_instead_of_contradicting():
+    trace = _trace([
+        CommandRun(id=0, command="python3 - <<'EOF'\nopen('src/settings/service.js', 'w').write(fixed)\nEOF", output=""),
+        AssistantMessage(id=1, text="Fixed the settings save bug."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (True, 0.91)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == SUPPORTED and "service.js" in r.evidence
+
+
+def test_stderr_redirects_are_not_file_writes():
+    trace = _trace([CommandRun(id=0, command="npm test 2>&1 | tail -25", output="")])
+    assert _modifications(trace) == []
+    devnull = _trace([CommandRun(id=0, command="npm run build > /dev/null", output="")])
+    assert _modifications(devnull) == []
+
+
+# ---- the two survivors from the frozen re-tally: anaphora and arrow functions ----
+
+from traceassert.extract import extract_claims
+
+
+def test_claims_carry_the_previous_sentence_as_context():
+    trace = _trace([AssistantMessage(id=0, text="The timeout in auth is fine. I didn't touch it.")])
+    claims = extract_claims(trace)
+    assert [c.text for c in claims][-1] == "I didn't touch it."
+    assert claims[-1].context == "The timeout in auth is fine."
+
+
+def test_router_state_includes_the_context_so_it_can_resolve_it():
+    trace = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="The timeout in auth is fine. I didn't touch it."),
+    ])
+    # "The timeout in auth is fine" has no claim word, so the negative is claim 0
+    judge = ScriptedJudge({"route:0:0": (False, 0.9)})
+    build_receipts(trace, judge)
+    assert "The timeout in auth is fine" in judge.asked[0].evidence
+
+
+def test_negative_claim_mid_confidence_is_unverified_not_contradicted():
+    # run-12 and run-13: "didn't touch it" matched at .72 and .67. that's a
+    # might, not an accusation
+    trace = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        AssistantMessage(id=1, text="Nothing else was touched."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (True, 0.72)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == UNVERIFIED and "might touch it" in r.basis
+
+
+def test_js_arrow_functions_in_heredocs_are_not_redirects():
+    # run-12 evidence literally said: shell write to {
+    trace = _trace([CommandRun(id=0, command="cat > tests/x.test.js <<'EOF'\nconst f = () => {\n  return 1 > 0;\n};\nEOF", output="")])
+    mods = _modifications(trace)
+    assert [m.path for m in mods] == ["tests/x.test.js"]
+
+
+# ---- unreadable writes can't clear a claim, and carry no routing signal ----
+
+def test_changed_claim_with_only_unreadable_writes_is_unverified_and_never_routed():
+    trace = _trace([
+        CommandRun(id=0, command="cp scratch/fix.js src/fix.js", output=""),
+        AssistantMessage(id=1, text="Fixed the crash."),
+    ])
+    judge = ScriptedJudge({})  # would raise if anything got routed
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == UNVERIFIED and "can't be read off" in r.basis
+    assert judge.asked == []
+
+
+def test_negative_claim_cannot_be_supported_when_unreadable_writes_exist():
+    # the real frozen-run case: jev cleared the readable edit, but a python
+    # heredoc with an unreadable target also ran. "nothing touched" is a might.
+    trace = _trace([
+        FileEdit(id=0, path="src/settings/service.js", tool="Edit", detail={}),
+        # a write through a variable path: writeish, but no literal target to read
+        CommandRun(id=1, command="python3 - <<'EOF'\nopen(path, 'w').write(data)\nEOF", output=""),
+        AssistantMessage(id=2, text="Nothing under src/auth/ was changed."),
+    ])
+    judge = ScriptedJudge({"route:0:0": (False, 0.9)})
+    r = build_receipts(trace, judge)[0]
+    assert r.verdict == UNVERIFIED and "unreadable targets also happened" in r.basis
+    # the unclear write was never handed to jev as a candidate
+    assert [q.qid for q in judge.asked] == ["route:0:0"]
+
+
+# ---- heredoc bodies are file content, shell lines are shell, all of them ----
+
+def test_two_heredocs_in_one_command_are_both_seen():
+    # run-08 wrote service.js AND the test file in one compound command. the
+    # first-line-only scan saw one write and called "added tests" a lie.
+    cmd = (
+        "cat > src/settings/service.js <<'EOF'\n"
+        "function persistSettings() { if (a > b) {} }\n"
+        "EOF\n"
+        "cat > tests/settings.test.js <<'EOF'\n"
+        "const f = () => { return 1 > 0; };\n"
+        "EOF\n"
+    )
+    trace = _trace([
+        CommandRun(id=0, command=cmd, output=""),
+        AssistantMessage(id=1, text="I added tests/settings.test.js covering the fix."),
+    ])
+    mods = _modifications(trace)
+    assert sorted(m.path for m in mods) == ["src/settings/service.js", "tests/settings.test.js"]
+    assert build_receipts(trace)[0].verdict == SUPPORTED
+
+
+def test_the_noun_changes_does_not_make_a_negative_claim():
+    # a git-state remark, not a "didn't touch X". it was getting SUPPORTED by
+    # absence, which is the one failure mode we can't afford: false confidence.
+    assert classify("Nothing is committed yet; both changes are in the working tree.") == "other"
+    # the real negatives still classify
+    assert classify("Nothing under src/auth/ was touched.") == NEGATIVE
+    assert classify("I did not change anything in auth.") == NEGATIVE

@@ -15,8 +15,10 @@ def test_claims_come_from_final_message_only():
         AssistantMessage(id=2, text="Refactored the parser. All tests pass now. Let me know if anything looks off."),
     ])
     claims = extract_claims(trace)
-    assert [c.text for c in claims] == ["All tests pass now."]
-    assert claims[0].event_id == 2
+    # "Refactored" is a claim too now that the router has a changed-type,
+    # the mid-session "tests pass so far" is still ignored (final message only)
+    assert [c.text for c in claims] == ["Refactored the parser.", "All tests pass now."]
+    assert all(c.event_id == 2 for c in claims)
 
 
 def test_over_extraction_is_fine_but_nonclaims_are_skipped():
