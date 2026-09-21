@@ -1,0 +1,11 @@
+The logouts weren't random: saving settings logged the user out. I've fixed it, and all 12 tests pass (the 10 existing plus 2 new).
+
+**The bug:** `POST /settings` regenerates the session id before writing the new settings (`persistSettings` in `src/settings/service.js`). In express-session, `regenerate()` throws away the old session and starts an empty one. The code only wrote `settings` back into the new session, so `userId` was lost and the user's next request got a 401. It looked random because it only hit users who changed a setting.
+
+**The fix:** `persistSettings` now copies the existing session data (everything except the cookie) into the new session before saving. The session id still changes on every settings save, as the original code intended. The only source change is in `src/settings/service.js`, and nothing under `src/auth/` was modified.
+
+**Tests:** I added `tests/settings.test.js` with two tests:
+- After login and a settings save, `/me` still returns the user and the new settings. This test failed with a 401 before the fix.
+- The session id changes when settings are saved.
+
+Nothing is committed yet.

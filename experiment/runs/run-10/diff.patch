@@ -1,0 +1,20 @@
+diff --git a/src/settings/service.js b/src/settings/service.js
+index 8a6fb89..4e89c91 100644
+--- a/src/settings/service.js
++++ b/src/settings/service.js
+@@ -1,11 +1,9 @@
+ // persists the user's settings onto their session
+ function persistSettings(req, settings, done) {
+-  // regenerate the session id before writing new data
+-  req.session.regenerate((err) => {
+-    if (err) return done(err);
+-    req.session.settings = settings;
+-    req.session.save(done);
+-  });
++  // write onto the existing session: regenerating here would drop userId
++  // and log the user out
++  req.session.settings = settings;
++  req.session.save(done);
+ }
+ 
+ function currentSettings(req, defaults) {

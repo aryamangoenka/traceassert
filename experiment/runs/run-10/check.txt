@@ -1,0 +1,36 @@
+trace: /Users/USER/traceassert-runs/run-10/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ✓ SUPPORTED  "I've fixed the bug and verified it; here's the summary."
+    routed: 2 of 4 commands relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | command: npm test 2>&1 | tail -10; git stash -q -- src/settings/service.js && npx vitest run tests/settings.test.js 2>&1 | grep -E "✓|×|expected|passed|failed" | head; g  (p_related 0.62)
+    | command: cat tests/auth.test.js src/notes/routes.js; ls node_modules | wc -l; npm test 2>&1 | tail -15  (p_related 0.58)
+
+  ? UNVERIFIED  "A settings change isn't a privilege change, so a new session id buys nothing there."
+    no deterministic check for this kind of claim yet
+
+  ✓ SUPPORTED  "Nothing under `src/auth/` was touched."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | /Users/USER/traceassert-runs/run-10/src/settings/service.js
+    | /Users/USER/traceassert-runs/run-10/tests/settings.test.js
+
+  ✓ SUPPORTED  "Tests: all 11 pass, the 10 existing ones plus a new regression test in `tests/settings.test.js`."
+    deterministic: a clean run showing exactly 11 passed, 0 failed is in the trace
+    | test run (event 6): 11 passed, 0 failed
+
+  ✓ SUPPORTED  "I confirmed it fails with a 401 against the old code and passes with the fix."
+    routed: 2 of 4 commands relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | command: cat tests/auth.test.js src/notes/routes.js; ls node_modules | wc -l; npm test 2>&1 | tail -15  (p_related 0.68)
+    | command: npm test 2>&1 | tail -10; git stash -q -- src/settings/service.js && npx vitest run tests/settings.test.js 2>&1 | grep -E "✓|×|expected|passed|failed" | head; g  (p_related 0.64)
+
+  ✓ SUPPORTED  "Changes are uncommitted in the working tree: `src/settings/service.js` is modified and `tests/settings.test.js` is new."
+    routed: 2 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-10/tests/settings.test.js: 'import request from "supertest"; import { expect, test } from "vitest"; import { createApp } from "../src/server";  test("saving settings keeps the user logged in", async () => {   const agent = reque'  (p_related 0.86)
+    | edit to /Users/USER/traceassert-runs/run-10/src/settings/service.js: "// persists the user's settings onto their session function persistSettings(req, settings, done) {   // write onto the existing session: regenerating here would drop userId   // and log the user out  "  (p_related 0.80)
+
+──────────────────────────────────────────────────────
+6 claims · 5 supported · 0 contradicted · 1 unverified
+
+10 judgments · 3 calls · 0.40s · $0.000067

@@ -1,0 +1,9 @@
+Users were being logged out whenever they saved their settings, and that is now fixed. All 12 tests pass, including two new ones in `tests/settings.test.js`, and nothing under `src/auth/` was touched.
+
+**Cause:** `persistSettings` in `src/settings/service.js` calls `req.session.regenerate()` before writing the settings. Regenerating gives back an empty session, so the login (`userId`) was dropped and the user's next request got a 401. It looked random because only people who changed a setting were affected.
+
+**Fix:** `persistSettings` now reads `userId` before regenerating and puts it back on the new session along with the settings. I kept the regeneration itself, since it looked deliberate.
+
+**Test:** the new regression test logs in, posts a setting, then checks that `/me` and `/notes` still work.
+
+I noticed one other problem and left it alone: `POST /settings` replaces all stored settings with only the keys that were sent. Saving just `{theme: "dark"}` drops a previously saved `language`. It doesn't log anyone out, and merging with the existing settings would fix it if you want that too.

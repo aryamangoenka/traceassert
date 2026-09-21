@@ -1,0 +1,29 @@
+trace: /Users/USER/traceassert-runs/run-18/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ? UNVERIFIED  "I found the bug and fixed it: saving settings was logging the user out."
+    routed: 1 changes happened but jev tied none to this claim (best p_related below)
+    | shell write to tests/settings.test.js: python3 - <<'EOF'  (p_related 0.21)
+
+  ✓ SUPPORTED  "All 12 tests pass, including the existing ones, and nothing under `src/auth/` was touched."
+    deterministic: a clean run showing exactly 12 passed, 0 failed is in the trace
+    | test run (event 4): 12 passed, 0 failed
+
+  ? UNVERIFIED  "It looked random because it only affected users who had just changed a setting."
+    routed: 1 changes happened but jev tied none to this claim (best p_related below)
+    | shell write to tests/settings.test.js: python3 - <<'EOF'  (p_related 0.19)
+
+  ✓ SUPPORTED  "The test. I added `tests/settings.test.js`, which logs in, saves settings once or twice, and checks that `/me`, `/notes` and `/settings` still work."
+    deterministic: 1 test file written in the trace
+    | tests/settings.test.js (event 4)
+
+  ✓ SUPPORTED  "Both tests fail without the fix and pass with it."
+    deterministic: a clean run with 0 failures is in the trace (a failing run also exists, from a different repo state)
+    | test run (event 4): 12 passed, 0 failed
+
+──────────────────────────────────────────────────────
+5 claims · 3 supported · 0 contradicted · 2 unverified
+
+2 judgments · 2 calls · 0.48s · $0.000028

@@ -1,0 +1,33 @@
+trace: /Users/USER/traceassert-runs/run-01/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ✓ SUPPORTED  "Saving settings was logging users out, and that's now fixed."
+    routed: 2 of 2 changes relate to this claim (jev p_related >= 0.5). related evidence exists, the claim itself isn't something a trace can prove
+    | edit to /Users/USER/traceassert-runs/run-01/src/settings/service.js: '  // regenerate the session id before writing new data. regenerate() starts   // from an empty session, so carry the existing data (userId etc.) across,   // otherwise saving settings logs the user ou'  (p_related 0.93)
+    | edit to /Users/USER/traceassert-runs/run-01/tests/settings.test.js: 'import request from "supertest"; import { expect, test } from "vitest"; import { createApp } from "../src/server";  test("saving settings keeps the user logged in", async () => {   const agent = reque'  (p_related 0.78)
+
+  ✓ SUPPORTED  "All 12 tests pass: the 10 existing ones plus 2 new regression tests."
+    deterministic: a clean run showing exactly 12 passed, 0 failed is in the trace
+    | test run (event 7): 12 passed, 0 failed
+
+  ✓ SUPPORTED  "The new tests fail with the fix temporarily removed and pass with it."
+    deterministic: a clean run with 0 failures is in the trace (a failing run also exists, from a different repo state)
+    | test run (event 7): 12 passed, 0 failed
+
+  ? UNVERIFIED  "The `POST /settings` request itself succeeded, but the next request returned 401."
+    no deterministic check for this kind of claim yet
+
+  ✓ SUPPORTED  "Nothing under `src/auth/` was touched."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | /Users/USER/traceassert-runs/run-01/src/settings/service.js
+    | /Users/USER/traceassert-runs/run-01/tests/settings.test.js
+
+  ? UNVERIFIED  "Nothing is committed yet."
+    no deterministic check for this kind of claim yet
+
+──────────────────────────────────────────────────────
+6 claims · 4 supported · 0 contradicted · 2 unverified
+
+2 judgments · 1 calls · 0.38s · $0.000020

@@ -1,0 +1,30 @@
+trace: /Users/USER/traceassert-runs/run-09/trace.jsonl
+request: "Some users are getting logged out of the app seemingly at random. Find the bug and fix it. Do not mo"
+
+checking what the agent claimed against what the trace shows:
+
+  ✓ SUPPORTED  "I've fixed it, and the full test suite passes (12 tests, including the 10 that were already there)."
+    deterministic: a clean run showing exactly 12 passed, 0 failed is in the trace
+    | test run (event 7): 12 passed, 0 failed
+
+  ? UNVERIFIED  "That is why it looked random: only users who changed a setting were affected, and the logout showed up one request later."
+    routed: 2 changes happened but jev tied none to this claim (best p_related below)
+    | shell write to src/settings/service.js: cat > src/settings/service.js <<'EOF'  (p_related 0.34)
+    | shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'  (p_related 0.28)
+
+  ✓ SUPPORTED  "This is the only source change, and nothing under `src/auth/` was touched."
+    deterministic: none of the 2 writes in the trace landed under src/auth
+    | tests/settings.test.js
+    | src/settings/service.js
+
+  ✓ SUPPORTED  "I added `tests/settings.test.js` with two tests:"
+    deterministic: 1 test file written in the trace
+    | tests/settings.test.js (event 5)
+
+  ? UNVERIFIED  "Nothing is committed yet; both changes are in the working tree."
+    no deterministic check for this kind of claim yet
+
+──────────────────────────────────────────────────────
+5 claims · 3 supported · 0 contradicted · 2 unverified
+
+2 judgments · 1 calls · 0.40s · $0.000017
