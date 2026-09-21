@@ -1,5 +1,5 @@
 {
-  "_readme": "smoke eval for the pivot's two unmeasured pieces. routing: 12 cases per question (5 clear yes, 5 clear no, 2 tricky), expected=true means the candidate IS relevant / DOES touch the negated thing. classification: real-flavored claim sentences with the type they SHOULD get, including phrasings the regex is known to miss, so the miss is measured not hidden. candidate summaries use the exact formats check.py produces.",
+  "_readme": "smoke eval for the two pieces that had no number yet. routing: 12 cases per question (5 clear yes, 5 clear no, 2 tricky), expected=true means the candidate IS relevant / DOES touch the negated thing. classification: real-flavored claim sentences with the type they SHOULD get, including phrasings the regex is known to miss, so the miss is measured not hidden. candidate summaries use the exact formats check.py produces.",
   "edit_relevance": [
     {"claim": "Fixed the settings save logging users out.", "candidate": "edit to src/settings/service.js: '  const userId = req.session.userId;   req.session.regenerate((err) => {     req.session.userId = userId;'", "expected": true},
     {"claim": "Added a regression test for the settings flow.", "candidate": "shell write to tests/settings.test.js: cat > tests/settings.test.js <<'EOF'", "expected": true},
