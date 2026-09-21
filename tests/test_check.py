@@ -79,6 +79,31 @@ def test_non_test_claim_is_unverified_for_now():
     assert verdicts["Deployed to production successfully."] == UNVERIFIED
 
 
+def test_http_status_codes_are_not_test_counts():
+    # frozen run-13: "returned 401 before the change and pass now" is TRUE
+    # (2 failed before, 13 pass after). 401 is a status code, not 401 tests.
+    # the first version of this checker called it CONTRADICTED. never again.
+    output = "Tests  2 failed | 11 passed (13)\n...fix applied...\nTests  13 passed (13)\n"
+    trace = _trace([
+        CommandRun(id=0, command="npm test", output=output, failed=False),
+        AssistantMessage(id=1, text="Two of its tests returned 401 before the change and pass now."),
+    ])
+    assert build_receipts(trace)[0].verdict == SUPPORTED
+
+
+def test_vitest_file_tallies_are_ignored():
+    # "Test Files 1 failed | 3 passed (4)" counts files, not tests. only the
+    # "Tests" line should feed the verdict, otherwise "all 13 pass" looks wrong
+    output = "Test Files  4 passed (4)\nTests  13 passed (13)\n"
+    trace = _trace([
+        CommandRun(id=0, command="npm test", output=output, failed=False),
+        AssistantMessage(id=1, text="All 13 tests pass."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == SUPPORTED
+    assert "4 passed" not in r.evidence
+
+
 def test_clean_numbered_claim_is_supported():
     trace = _trace([
         CommandRun(id=0, command="pytest", output="12 passed in 1s", failed=False),

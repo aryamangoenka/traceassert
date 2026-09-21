@@ -42,10 +42,15 @@ _PASSED = re.compile(r"(\d+)\s+passed", re.I)
 _FAILED = re.compile(r"(\d+)\s+failed", re.I)
 
 
+_FILE_COUNT_LINE = re.compile(r"test files", re.I)  # vitest prints file tallies too, not test counts
+
+
 def _states(output: str) -> list[tuple[int, int]]:
     # every (passed, failed) pair the output reports, one per summary-ish line
     states = []
     for line in output.splitlines():
+        if _FILE_COUNT_LINE.search(line):
+            continue  # "Test Files 1 failed | 3 passed" counts files, would pollute
         p, f = _PASSED.search(line), _FAILED.search(line)
         if p or f:
             states.append((int(p.group(1)) if p else 0, int(f.group(1)) if f else 0))
@@ -54,7 +59,10 @@ def _states(output: str) -> list[tuple[int, int]]:
 
 _TEST_CLAIM = re.compile(r"\b(test|tests|suite|spec|specs)\b", re.I)
 _PASS_WORD = re.compile(r"\b(pass|passes|passed|passing|green|succeed|succeeds|succeeded)\b", re.I)
-_CLAIM_NUM = re.compile(r"\b(\d+)\b")
+# the claimed COUNT has to sit next to a test-ish word: "12 tests", "394 total",
+# "all 12 pass". a bare number is not a count, a real trace said "returned 401
+# before the change" and 401 is an http status, not 401 tests.
+_CLAIM_COUNT = re.compile(r"\b(\d+)\s*(?:tests?|specs?|total|passed|passing|pass\b|green)", re.I)
 
 
 def _check_test_claim(claim: Claim, trace: Trace) -> Receipt | None:
@@ -79,7 +87,7 @@ def _check_test_claim(claim: Claim, trace: Trace) -> Receipt | None:
                        "no pass/fail counts found in any command output", [claim.event_id])
 
     clean = [(p, f, eid) for (p, f, eid) in observed if f == 0 and p > 0]
-    claimed = _CLAIM_NUM.search(text)
+    claimed = _CLAIM_COUNT.search(text)
     claimed_n = int(claimed.group(1)) if claimed else None
 
     def ev(states):
