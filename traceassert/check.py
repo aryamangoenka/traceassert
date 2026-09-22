@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .extract import Claim, extract_claims
+from .extract import Claim, extract_claims, extract_test_runs
 from .judge import Question
 from .models import CommandRun, FileEdit, Trace
 
@@ -67,7 +67,14 @@ _NEGATIVE = re.compile(
 _ADDED_TESTS = re.compile(
     r"\b(add(?:ed)?|wrote|new|creat(?:ed)?|introduc(?:ed)?)\b[^.]*\btests?\b|"
     r"\btests?\b[^.]*\b(added|written|new|created)\b", re.I)
-_RAN = re.compile(r"\b(ran|executed|verified|checked|confirmed|reproduced|re-?ran)\b", re.I)
+# bare "ran" is not a claim of work: "if the engagement ran longer than the
+# commits show" got filed as one (a real session). "ran" needs the agent as
+# subject or a test-ish object; the other verbs are unambiguous enough alone.
+_RAN = re.compile(
+    r"\b(?:(?:i|we)\s+(?:re-?)?ran|(?:re-?)?ran\s+(?:the|all|every|both|it|them|tests?|pytest|npm|yarn|make)\b|"
+    r"executed|verified|checked|confirmed|reproduced)\b", re.I)
+# sentences aimed at the user are requests, not claims about work done
+_TO_THE_USER = re.compile(r"\b(tell me|let me know|if you want|do you want|should i|want me to|you can)\b", re.I)
 _CHANGED = re.compile(
     r"\b(fix(?:ed)?|chang(?:ed)?|updat(?:ed)?|refactor(?:ed)?|edit(?:ed)?|modif(?:y|ied)|"
     r"remov(?:ed)?|delet(?:ed)?|add(?:ed)?|implement(?:ed)?|renam(?:ed)?|mov(?:ed)?|"
@@ -75,6 +82,8 @@ _CHANGED = re.compile(
 
 
 def classify(text: str) -> str:
+    if text.rstrip().endswith("?") or _TO_THE_USER.search(text):
+        return OTHER  # a question or a request to the user, nothing to verify
     if _TEST_WORD.search(text) and _PASS_WORD.search(text):
         return TEST_PASS
     if _NEGATIVE.search(text):
@@ -97,11 +106,27 @@ _FAILED = re.compile(r"(\d+)\s+failed", re.I)
 _FILE_COUNT_LINE = re.compile(r"test files", re.I)  # vitest prints file tallies too
 
 
+# pytest's progress line: dots for passes, F/E for failures, a percent at the
+# end. with -qq (a repo's addopts -q plus the agent's own -q, a real session)
+# it is the ONLY output, no "N passed" summary at all. long suites wrap across
+# several lines with a running percent, so dots accumulate until [100%].
+_PROGRESS_LINE = re.compile(r"^\s*([.FEsxX]+)\s*\[\s*(\d+)%\]\s*$")
+
+
 def _states(output: str) -> list[tuple[int, int]]:
     states = []
+    dots, fails = 0, 0
     for line in output.splitlines():
         if _FILE_COUNT_LINE.search(line):
             continue  # "Test Files 1 failed | 3 passed" counts files, would pollute
+        m = _PROGRESS_LINE.match(line)
+        if m:
+            dots += m.group(1).count(".")
+            fails += m.group(1).count("F") + m.group(1).count("E")
+            if int(m.group(2)) == 100:
+                states.append((dots, fails))
+                dots, fails = 0, 0
+            continue
         p, f = _PASSED.search(line), _FAILED.search(line)
         if p or f:
             states.append((int(p.group(1)) if p else 0, int(f.group(1)) if f else 0))
@@ -124,6 +149,12 @@ def _check_test_claim(claim: Claim, trace: Trace) -> Receipt:
         for (p, f) in _states(r.output):
             observed.append((p, f, r.id))
     if not observed:
+        runs = extract_test_runs(trace)
+        if runs:
+            return Receipt(text, UNVERIFIED,
+                           "deterministic: test commands ran but their output had no readable pass/fail counts",
+                           "\n".join(f"{r.command.splitlines()[0][:100]} (event {r.id})" for r in runs[:4]),
+                           [claim.event_id] + [r.id for r in runs])
         return Receipt(text, UNVERIFIED,
                        "deterministic: claim says tests pass but no test output is in the trace",
                        "no pass/fail counts found in any command output", [claim.event_id])
