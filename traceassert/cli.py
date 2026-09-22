@@ -57,18 +57,24 @@ def _cmd_check(paths, judge, offline: bool = False) -> int:
     # claims to evidence, and without a key those receipts say so honestly.
     # --offline forces that path even with a key around, handy on someone
     # else's private repo. exit 1 if any claim is CONTRADICTED, the ci-gate value.
-    if judge is None and not offline:
+    if offline:
+        mode = "off (--offline, deterministic checks only)"
+    elif judge is not None:
+        mode = "on"
+    else:
         try:
             judge = JevJudge()
+            mode = "on (key found, fuzzy claims get routed)"
         except RuntimeError:
             judge = None
+            mode = "off (no JEV_API_KEY, deterministic checks only)"
     contradicted = 0
     for i, path in enumerate(paths):
         if i:
             print("\n")
         trace = parse_trace(path)
         receipts = build_receipts(trace, judge)
-        print(render_receipts(trace, receipts))
+        print(render_receipts(trace, receipts, mode=mode))
         contradicted += sum(1 for r in receipts if r.verdict == CONTRADICTED)
     if judge is not None and judge.stats.calls:
         print()

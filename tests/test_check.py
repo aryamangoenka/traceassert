@@ -558,3 +558,28 @@ def test_python_heredoc_with_a_path_variable_is_attributed():
     trace = _trace([CommandRun(id=0, command=cmd, output="")])
     mods = _modifications(trace)
     assert [m.path for m in mods] == ["src/zerodha_engine/cli.py"]
+
+
+# ---- the mode header: one line of truth about whether jev was in play ----
+
+def test_mode_header_names_the_offline_state(capsys):
+    from pathlib import Path
+    fx = str(Path(__file__).parent / "fixtures" / "tiny_session.jsonl")
+    cli_main(["check", fx, "--offline"])
+    out = capsys.readouterr().out
+    assert "jev routing: off (--offline" in out
+    assert out.index("jev routing") < out.index("checking what the agent claimed")
+
+
+def test_mode_header_with_an_injected_judge(capsys):
+    from pathlib import Path
+    fx = str(Path(__file__).parent / "fixtures" / "tiny_session.jsonl")
+    judge = ScriptedJudge({"scope:2": (False, 0.9), "claim:0": (True, 0.9), "claim:1": (True, 0.9),
+                           "destr:3": (False, 0.9), "auth:3": (False, 0.9), "destr:4": (False, 0.9),
+                           "auth:4": (False, 0.9), "same:3:4": (True, 0.9), "newinfo:3:4": (True, 0.9),
+                           "summary:final": (True, 0.9), "route:0:2": (False, 0.9), "route:1:2": (False, 0.9)})
+    from traceassert.report import render_receipts
+    from traceassert.parser import parse_trace
+    trace = parse_trace(fx)
+    out = render_receipts(trace, build_receipts(trace, judge), color=False, mode="on")
+    assert "jev routing: on" in out
