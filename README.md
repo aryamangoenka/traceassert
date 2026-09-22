@@ -86,17 +86,46 @@ when jev gets asked a question, the claim sentence plus the sentence before it a
 - when the agent writes a file through a shell command whose target can't be read off the command, the receipt says so and refuses to call the claim a lie.
 - v0's five semantic rules still exist as `traceassert test` and are kept around while the claim checker proves out, but they are not the headline.
 
-## install
+## running it
 
-not on pypi yet, so from source:
+not on pypi yet, so it runs from a clone. every command below is meant to be run from inside the `traceassert` folder, because `uv run` needs the project and the `.env` file is read from the current directory.
+
+install once:
 
 ```
 git clone https://github.com/aryamangoenka/traceassert && cd traceassert
 uv sync
-uv run traceassert check <trace.jsonl | folder of them>
 ```
 
-putting `JEV_API_KEY=...` in a `.env` turns routing on.
+claude code keeps every session's trace as a `.jsonl` file under `~/.claude/projects/`, one folder per project you have opened it in, named after the project path with slashes turned into dashes. to see what you have, newest first:
+
+```
+ls -t ~/.claude/projects/*/*.jsonl | head
+```
+
+check your most recent session (no placeholders to fill in, this picks the newest file for you):
+
+```
+uv run traceassert check "$(ls -t ~/.claude/projects/*/*.jsonl | head -1)"
+```
+
+check every session of one project by pointing it at the folder, and it prints one receipt per trace:
+
+```
+uv run traceassert check ~/.claude/projects/-Users-you-yourproject
+```
+
+to check a specific session, paste the file path from the `ls` above in place of the folder. avoid typing angle brackets in a shell, zsh reads them as redirections.
+
+by default the tool runs the deterministic checks and stops there, and any claim that would need jev reads "routing not configured". to turn routing on, put your key in a file called `.env` in the repo folder, one line, `JEV_API_KEY=yourkey`, and run the same commands again. to force the deterministic-only mode even with a key configured, for instance on somebody else's private repo, add `--offline`:
+
+```
+uv run traceassert check ~/.claude/projects/-Users-you-yourproject --offline
+```
+
+reading a receipt: each claim is one sentence from the agent's final message, the stamp is the verdict, the line under it says how it was decided, and the `|` lines are the evidence with the trace event numbers so you can go look. the last line is the tally, and if routing was on there is a stats line after it with the jev calls and the cost. the command exits 1 if any claim came back CONTRADICTED and 0 otherwise, so `traceassert check` on a folder of traces works as a ci step.
+
+a session that ended without a summary, for example one that died on an error, has no claims and prints an empty receipt. that is the correct output, not a bug.
 
 ## about the numbers in this readme
 
