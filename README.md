@@ -123,7 +123,7 @@ by default the tool runs the deterministic checks and stops there, and any claim
 uv run traceassert check ~/.claude/projects/-Users-you-yourproject --offline
 ```
 
-reading a receipt: each claim is one sentence from the agent's final message, the stamp is the verdict, the line under it says how it was decided, and the `|` lines are the evidence with the trace event numbers so you can go look. the last line is the tally, and if routing was on there is a stats line after it with the jev calls and the cost. the command exits 1 if any claim came back CONTRADICTED and 0 otherwise, so `traceassert check` on a folder of traces works as a ci step.
+reading a receipt: the third line says whether jev routing was on, off because no key was found, or off because of `--offline`, so you always know which mode produced what follows. each claim is one sentence from the agent's final message, the stamp is the verdict, the line under it says how it was decided, and the `|` lines are the evidence with the trace event numbers so you can go look. the last line is the tally, and if routing was on there is a stats line after it with the jev calls and the cost. the command exits 1 if any claim came back CONTRADICTED and 0 otherwise, so `traceassert check` on a folder of traces works as a ci step.
 
 a session that ended without a summary, for example one that died on an error, has no claims and prints an empty receipt. that is the correct output, not a bug.
 

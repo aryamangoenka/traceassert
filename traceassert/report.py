@@ -112,7 +112,10 @@ _MARKS = {"SUPPORTED": ("✓", "GREEN"), "CONTRADICTED": ("✗", "RED"), "UNVERI
 _COLORS = {"GREEN": GREEN, "RED": RED, "YELLOW": YELLOW}
 
 
-def render_receipts(trace: Trace, receipts, color: bool | None = None) -> str:
+def render_receipts(trace: Trace, receipts, color: bool | None = None, mode: str = "") -> str:
+    # mode is one line of truth about jev: on, off because no key, or off by
+    # --offline. without it a run with a key but no routed claims prints no
+    # stats line and nobody can tell whether jev was even available.
     color = want_color() if color is None else color
     c = (lambda code: code) if color else (lambda code: "")
 
@@ -120,6 +123,8 @@ def render_receipts(trace: Trace, receipts, color: bool | None = None) -> str:
     if trace.user_request:
         lines.append(f'{c(DIM)}request: "{trace.user_request.replace(chr(10), " ")[:100]}"{c(RESET)}')
     lines.append("")
+    if mode:
+        lines.insert(len(lines) - 1, f"{c(DIM)}jev routing: {mode}{c(RESET)}")
     lines.append("checking what the agent claimed against what the trace shows:")
     lines.append("")
 
