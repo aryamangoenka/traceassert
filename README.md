@@ -117,7 +117,13 @@ uv run traceassert check ~/.claude/projects/-Users-you-yourproject
 
 to check a specific session, paste the file path from the `ls` above in place of the folder. avoid typing angle brackets in a shell, zsh reads them as redirections.
 
-by default the tool runs the deterministic checks and stops there, and any claim that would need jev reads "routing not configured". to turn routing on, put your key in a file called `.env` in the repo folder, one line, `JEV_API_KEY=yourkey`, and run the same commands again. to force the deterministic-only mode even with a key configured, for instance on somebody else's private repo, add `--offline`:
+by default the tool runs the deterministic checks and stops there, and any claim that would need jev reads "routing not configured". to turn routing on you need a jev api key from [typesafe.ai](https://typesafe.ai), then create a file called `.env` in the repo folder containing that one key. this command does it, replace the word yourkey with the actual key and keep the quotes:
+
+```
+echo 'JEV_API_KEY=yourkey' > .env
+```
+
+`.env` is in `.gitignore`, so the key stays on your machine and never ends up in a commit. run the same check commands again and the third line of the receipt switches to "jev routing: on". to force the deterministic-only mode even with a key configured, for instance on somebody else's private repo, add `--offline`:
 
 ```
 uv run traceassert check ~/.claude/projects/-Users-you-yourproject --offline
