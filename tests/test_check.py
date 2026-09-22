@@ -462,3 +462,65 @@ def test_outside_names_the_allowed_region_so_the_check_inverts():
     r = build_receipts(strayed, ScriptedJudge({}))[0]
     assert r.verdict == CONTRADICTED and "landed outside it" in r.basis
     assert "src/auth/session.js" in r.evidence and "service.js" not in r.evidence
+
+
+# ---- round 1 on real sessions: three fixes, each from a real sentence or output ----
+
+from traceassert.cli import main as cli_main
+
+
+def test_offline_flag_never_touches_jev(capsys):
+    # a key is configured on this machine, --offline must still skip routing
+    from pathlib import Path
+    fx = str(Path(__file__).parent / "fixtures" / "tiny_session.jsonl")
+    code = cli_main(["check", fx, "--offline"])
+    out = capsys.readouterr().out
+    assert "judgments" not in out  # no stats line means no jev call happened
+    assert code in (0, 1)
+
+
+def test_requests_to_the_user_are_not_claims():
+    # resume session: a question to the user got filed as an "i ran" claim
+    # because of the bare word "ran", then routed, then SUPPORTED. never again.
+    s = "A two-day commit window on the resume looks odd, so if the engagement ran longer than the commits show, tell me the real start and end."
+    assert classify(s) == "other"
+    assert classify("Do you want me to run them again?") == "other"
+    assert classify("I ran the suite twice.") == RAN
+    assert classify("Re-ran pytest after the fix.") == RAN
+
+
+def test_pytest_progress_line_is_a_readable_state():
+    # zerodha session: pytest -qq prints only dots and [100%], no summary line.
+    # the agent's "all 50 tests passed" was true and got UNVERIFIED for it.
+    dots = "." * 50 + "                       [100%]\nAll checks passed!"
+    trace = _trace([
+        CommandRun(id=0, command="PYTHONPATH=src .venv/bin/python -m pytest tests/test_cli.py -q 2>&1 | tail -3", output=dots),
+        AssistantMessage(id=1, text="Verification: all 50 tests in the CLI test file passed."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == SUPPORTED and "50 passed" in r.evidence
+
+    failing = "..F......." + "  [100%]"
+    trace = _trace([
+        CommandRun(id=0, command="pytest -q", output=failing, failed=True),
+        AssistantMessage(id=1, text="All tests pass."),
+    ])
+    assert build_receipts(trace)[0].verdict == CONTRADICTED
+
+
+def test_wrapped_progress_lines_accumulate_until_100():
+    out = "." * 70 + " [ 70%]\n" + "." * 30 + " [100%]\n"
+    trace = _trace([
+        CommandRun(id=0, command="pytest -q", output=out),
+        AssistantMessage(id=1, text="All 100 tests pass."),
+    ])
+    assert build_receipts(trace)[0].verdict == SUPPORTED
+
+
+def test_unreadable_test_output_is_named_as_such():
+    trace = _trace([
+        CommandRun(id=0, command="pytest -q", output="some harness output with no counts"),
+        AssistantMessage(id=1, text="All tests pass."),
+    ])
+    r = build_receipts(trace)[0]
+    assert r.verdict == UNVERIFIED and "no readable pass/fail counts" in r.basis

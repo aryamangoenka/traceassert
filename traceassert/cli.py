@@ -23,6 +23,8 @@ def main(argv: list[str] | None = None, judge=None) -> int:
     # the main command: claim -> evidence -> verdict, deterministic first, jev only routes
     check = sub.add_parser("check", help="attest the agent's claims against the trace")
     check.add_argument("path", help="a .jsonl trace or a folder of them")
+    check.add_argument("--offline", action="store_true",
+                       help="deterministic checks only, never call jev even if a key is configured")
 
     # the v0 rule engine, kept working alongside
     test = sub.add_parser("test", help="run the semantic rules against traces")
@@ -46,15 +48,16 @@ def main(argv: list[str] | None = None, judge=None) -> int:
         return 2
 
     if args.cmd == "check":
-        return _cmd_check(paths, judge)
+        return _cmd_check(paths, judge, args.offline)
     return _cmd_test(paths, args.prohibit, judge)
 
 
-def _cmd_check(paths, judge) -> int:
+def _cmd_check(paths, judge, offline: bool = False) -> int:
     # the deterministic core needs no key. jev is optional here, it only routes
     # claims to evidence, and without a key those receipts say so honestly.
-    # exit 1 if any claim is CONTRADICTED, that's the ci-gate value.
-    if judge is None:
+    # --offline forces that path even with a key around, handy on someone
+    # else's private repo. exit 1 if any claim is CONTRADICTED, the ci-gate value.
+    if judge is None and not offline:
         try:
             judge = JevJudge()
         except RuntimeError:
