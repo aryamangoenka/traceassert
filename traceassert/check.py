@@ -116,16 +116,29 @@ _PROGRESS_LINE = re.compile(r"^\s*([.FEsxX]+)\s*\[\s*(\d+)%\]\s*$")
 def _states(output: str) -> list[tuple[int, int]]:
     states = []
     dots, fails = 0, 0
+    first_chars, first_pct = None, None  # of the current progress sequence
     for line in output.splitlines():
         if _FILE_COUNT_LINE.search(line):
             continue  # "Test Files 1 failed | 3 passed" counts files, would pollute
         m = _PROGRESS_LINE.match(line)
         if m:
-            dots += m.group(1).count(".")
-            fails += m.group(1).count("F") + m.group(1).count("E")
-            if int(m.group(2)) == 100:
-                states.append((dots, fails))
-                dots, fails = 0, 0
+            chars, pct = m.group(1), int(m.group(2))
+            if first_chars is None:
+                first_chars, first_pct = len(chars), pct
+            dots += chars.count(".")
+            fails += chars.count("F") + chars.count("E")
+            if pct == 100:
+                # `cmd | tail -30` cuts the START of the run off. then the
+                # first line we see says e.g. 72 dots at [76%], which cannot
+                # be the start of a 162-test run (that would be 44%). a real
+                # trace produced a phantom "162 passed" this way. if the first
+                # line's percent is bigger than its share of what we counted,
+                # the run was truncated and we don't know the real total.
+                total = dots + fails
+                expected = round(100 * first_chars / total) if total else 0
+                if first_pct <= expected + 3:
+                    states.append((dots, fails))
+                dots, fails, first_chars, first_pct = 0, 0, None, None
             continue
         p, f = _PASSED.search(line), _FAILED.search(line)
         if p or f:
@@ -217,6 +230,8 @@ _REDIRECT = re.compile(r"(?<![0-9&<=\-])>>?\s*(?!&)([^\s;&|>]+)")  # skips 2>&1,
 _TEE = re.compile(r"\btee\s+(?:-a\s+)?([^\s;&|]+)")
 _SED_I = re.compile(r"\bsed\s+-i\S*\s+(?:'[^']*'|\"[^\"]*\"|\S+)\s+([^\s;&|]+)")
 _PY_WRITE = re.compile(r"(?:open|Path)\(\s*['\"]([^'\"]+)['\"]\s*(?:,\s*['\"][wa]|\)\.write)")
+_PY_WRITE_VAR = re.compile(r"(?:open|Path)\(\s*(\w+)\s*(?:,\s*['\"][wa]|\)\.write)")
+_PY_ASSIGN = re.compile(r"^\s*(\w+)\s*=\s*['\"]([^'\"\n]+)['\"]\s*$", re.M)
 _WRITEISH_LINE = re.compile(r"(?<![0-9&<=\-])>>?(?!&)|\btee\b|\bsed\s+-i|\bcp\b|\bmv\b|\bgit apply\b")
 _WRITEISH_BODY = re.compile(r"\.write_text\(|\.write\(|open\([^)]*['\"][wa]['\"]")
 _NOT_A_FILE = {"/dev/null", "/dev/stderr", "/dev/stdout"}
@@ -254,6 +269,13 @@ def _shell_writes(cmd: CommandRun) -> list[Mod]:
             p = m.group(1).strip("'\"")
             if p and p not in _NOT_A_FILE:
                 paths.add(p)
+    # the most common agent idiom in python heredocs is p='src/x.py' on one
+    # line and open(p,'w') on the next. one hop of variable lookup covers it.
+    assigned = {m.group(1): m.group(2) for m in _PY_ASSIGN.finditer(text)}
+    for m in _PY_WRITE_VAR.finditer(text):
+        if m.group(1) in assigned:
+            saw_target = True
+            paths.add(assigned[m.group(1)])
     if paths:
         return [Mod(cmd.id, p, f"shell write to {p}: {head}") for p in sorted(paths)]
     if saw_target:

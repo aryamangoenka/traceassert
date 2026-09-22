@@ -524,3 +524,37 @@ def test_unreadable_test_output_is_named_as_such():
     ])
     r = build_receipts(trace)[0]
     assert r.verdict == UNVERIFIED and "no readable pass/fail counts" in r.basis
+
+
+# ---- evidence must be real: truncated progress output, and heredoc variables ----
+
+from traceassert.check import _states
+
+
+def test_truncated_progress_output_does_not_invent_a_pass_count():
+    # `make check | tail -30` cut the start of a 378-test run. what survived
+    # was 72 dots at [76%], 72 at [95%], 18 at [100%], and the parser summed
+    # them into a "162 passed" run that never happened. the percent on the
+    # first visible line gives the truncation away.
+    truncated = ("." * 72 + " [ 76%]\n" + "." * 72 + " [ 95%]\n" + "." * 18 + " [100%]\n"
+                 + "378 passed in 12.3s\n")
+    assert _states(truncated) == [(378, 0)]
+    # a complete wrapped run still parses: 70 dots at 70%, then 30 at 100%
+    assert _states("." * 70 + " [ 70%]\n" + "." * 30 + " [100%]\n") == [(100, 0)]
+    # and a single full line still does
+    assert _states("." * 50 + "   [100%]\n") == [(50, 0)]
+
+
+def test_python_heredoc_with_a_path_variable_is_attributed():
+    # zerodha: p='src/zerodha_engine/cli.py' on one line, open(p,'w') on the next.
+    # both writes in that session read "target unclear" before this.
+    cmd = ("git checkout -b small-improvements-24 && python3 - <<'EOF'\n"
+           "p='src/zerodha_engine/cli.py'\n"
+           "s=open(p).read()\n"
+           "s=s.replace('a','b')\n"
+           "open(p,'w').write(s)\n"
+           "EOF\n"
+           "git diff --stat")
+    trace = _trace([CommandRun(id=0, command=cmd, output="")])
+    mods = _modifications(trace)
+    assert [m.path for m in mods] == ["src/zerodha_engine/cli.py"]
